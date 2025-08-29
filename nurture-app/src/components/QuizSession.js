@@ -12,7 +12,7 @@ import QuizResults from './QuizResults';
  * Integrates Parts 2 and 3: Quiz taking → Agent Discussion → Results Display
  * Simulates a complete quiz session with agentic evaluation
  */
-function QuizSession() {
+function QuizSession({ user }) {
   const [stage, setStage] = useState('taking'); // 'taking', 'evaluating', 'results'
   const [quizData, setQuizData] = useState(null);
   const [evaluationResults, setEvaluationResults] = useState(null);
@@ -86,7 +86,6 @@ function QuizSession() {
         throw new Error('Quiz data not available');
       }
 
-      const user = auth.currentUser;
       if (!user) {
         throw new Error('User not authenticated');
       }

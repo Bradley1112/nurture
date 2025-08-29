@@ -198,7 +198,9 @@ When study time is up display a peaceful background of nature, play calming musi
 Beside each topic, also indicate which level he has, with colour indicators (eg red for beginner…). He will then be prompted with a quick question asking him for his “focus level”, and his “ stress” he is. Based on that, determine the length of the study session, frequency of breaks, intensity of study session, which study method to use (choose something thats a bit less brain intensive if the student is tired ), and how much content to cover.  
 For each study session, change the duration of session depending on his focus and stress level.
 Create new entries or link the entries to the firebase database based on what you have coded in this part . Output the new database.
-Part 7: Within the study session (leave a placeholder if you are unsure how to code this using AWS Strands SDK)
+
+
+Part 7: Within the study session (leave a placeholder if you are unsure how to code the agentic parts using AWS Strands SDK)
 Within the study session, use the following agent configuration:  The system is implemented as an Agent Graph using a Star Topology.
 Central Hub (Orchestrating Agent): At the center of the architecture is the Orchestrating Agent. Its primary role is to manage the entire study session. It retrieves the student’s expertise level, directs them to the appropriate learning or practice session, and coordinates the actions of all specialized agents to create a seamless experience.
 Specialized Nodes (Agents with Learning & Practice Tools): Connected to the orchestrator are several specialized agents, each with a distinct role and set of tools. These agents are the functional heart of the platform, delivering the educational content and interactions.
@@ -216,6 +218,7 @@ In learning session mode, consists  a visual and memory assistant agent. It can 
 In practice session mode, he simulates a peer study session. This agent prompts the user to explain concepts back in their own words, a powerful technique for reinforcing knowledge. At the end of the interaction, it provides feedback and re-evaluates the student's understanding, completing the active-recall loop.
 Whenever planning a study plan, his priority should be the mental and physical wellbeing of te student. He should take into consideration things like stress level, physical fatigue, other commmitmets that may be present at certain points of time etc. 
 Create new entries or link the entries to the firebase database based on what you have coded in this part . Output the new database.
+
 Part 8: After the study session
 After each session, re-evalaute the expertise of the student based on how well he did for each session using the same agentic method as part 3 (leave placeholder if you are unsure how to implement the code)
 Adjust the one month study plan timeline based on that by removing or adding scheduled sessions for that topic using the same agentic method as part 4 (leave placeholder if you are unsure how to implement the code)

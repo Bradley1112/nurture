@@ -48,9 +48,9 @@ function App() {
             <Route path="/signup" element={<Signup />} />
 
             {/* Private routes */}
-            <Route path="/dashboard" element={<PrivateRoute><Dashboard /></PrivateRoute>} />
-            <Route path="/quiz" element={<PrivateRoute><EvaluationQuiz /></PrivateRoute>} />
-            <Route path="/quiz-session" element={<PrivateRoute><QuizSession /></PrivateRoute>} />
+            <Route path="/dashboard" element={<PrivateRoute user={user}><Dashboard user={user} /></PrivateRoute>} />
+            <Route path="/quiz" element={<PrivateRoute user={user}><EvaluationQuiz user={user} /></PrivateRoute>} />
+            <Route path="/quiz-session" element={<PrivateRoute user={user}><QuizSession user={user} /></PrivateRoute>} />
 
             {/* Redirect to dashboard if logged in, otherwise to login */}
             <Route path="/" element={<Navigate to={user ? "/dashboard" : "/login"} />} />

@@ -1,8 +1,7 @@
 import React from 'react';
 import { auth } from '../firebase/firebase';
 
-function Dashboard() {
-  const user = auth.currentUser;
+function Dashboard({ user }) {
   
   // Safe name extraction with fallbacks
   const getFirstName = () => {

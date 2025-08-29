@@ -12,7 +12,10 @@ class ErrorBoundary extends React.Component {
   }
 
   componentDidCatch(error, errorInfo) {
-    // Log error details
+    // Log error details to console for debugging
+    console.error('ErrorBoundary caught an error:', error);
+    console.error('Error info:', errorInfo);
+    
     this.setState({
       error: error,
       errorInfo: errorInfo
@@ -60,7 +63,7 @@ class ErrorBoundary extends React.Component {
                 <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
                   {this.state.error && this.state.error.toString()}
                   <br />
-                  {this.state.errorInfo.componentStack}
+                  {this.state.errorInfo && this.state.errorInfo.componentStack}
                 </pre>
               </details>
             )}

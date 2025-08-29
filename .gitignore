@@ -1,0 +1,92 @@
+# Nurture App - Comprehensive .gitignore
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Python Backend
+backend/venv/
+backend/__pycache__/
+backend/*.pyc
+backend/*.pyo
+backend/*.pyd
+backend/.Python
+backend/pip-log.txt
+backend/pip-delete-this-directory.txt
+backend/.coverage
+backend/.pytest_cache/
+
+# React Frontend
+nurture-app/node_modules/
+nurture-app/build/
+nurture-app/.env.local
+nurture-app/.env.development.local
+nurture-app/.env.test.local
+nurture-app/.env.production.local
+nurture-app/npm-debug.log*
+nurture-app/yarn-debug.log*
+nurture-app/yarn-error.log*
+
+# IDE and Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Logs
+logs/
+*.log
+
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+build/
+
+# Cache directories
+.cache/
+.parcel-cache/
+
+# Testing
+coverage/
+
+# Firebase
+.firebase/
+firebase-debug.log
+
+# AWS
+.aws/
+
+# Temporary files
+temp/
+tmp/
+*.tmp
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Jupyter Notebooks
+.ipynb_checkpoints/
+
+# Documentation builds
+docs/_build/
+
+# Package files
+*.tar.gz
+*.zip

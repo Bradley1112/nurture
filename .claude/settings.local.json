@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm start)",
+      "Bash(python:*)",
+      "Bash(curl:*)",
+      "Bash(pip install:*)",
+      "Bash(BACKEND_PORT=5001 python app.py)",
+      "Bash(source:*)",
+      "Bash(chmod:*)",
+      "Bash(./start-dev.sh:*)",
+      "Bash(aws sts:*)",
+      "Bash(env)",
+      "Bash(BACKEND_PORT=8000 ./start-dev.sh)",
+      "Bash(PORT=3001 npm start)",
+      "Bash(BACKEND_PORT=5000 python app.py)",
+      "WebFetch(domain:strandsagents.com)",
+      "Bash(aws configure:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

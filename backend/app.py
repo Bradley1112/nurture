@@ -17,6 +17,15 @@ from config import get_config
 # Import API blueprints
 from services.api import health_blueprint, quiz_blueprint, evaluation_blueprint
 
+# Import study session blueprint
+try:
+    from services.api.study_session_routes import study_session_blueprint
+    STUDY_SESSION_ROUTES_AVAILABLE = True
+except ImportError as e:
+    logger.warning(f"Study session routes not available: {e}")
+    STUDY_SESSION_ROUTES_AVAILABLE = False
+    study_session_blueprint = None
+
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -44,6 +53,13 @@ def create_app():
     app.register_blueprint(health_blueprint)
     app.register_blueprint(quiz_blueprint)
     app.register_blueprint(evaluation_blueprint)
+    
+    # Register study session blueprint if available
+    if STUDY_SESSION_ROUTES_AVAILABLE:
+        app.register_blueprint(study_session_blueprint)
+        logger.info("✅ Study session routes registered (AWS Strands Agent Graph)")
+    else:
+        logger.warning("⚠️ Study session routes not available - running without Part 7 functionality")
     
     # Add additional routes
     register_additional_routes(app)

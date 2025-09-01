@@ -380,42 +380,73 @@ function EvaluationQuiz({ user }) {
   const saveQuizResults = async (finalAnswers, evaluationResults) => {
     try {
       const userId = user.uid;
+      console.log('Saving quiz results for user:', userId);
       
       // Update user's onboarding status
       await updateDoc(doc(db, 'users', userId), {
         onboardingCompleted: true,
         lastQuizDate: Timestamp.now()
       });
+      console.log('✅ Updated user onboarding status');
       
       // Save expertise levels for each topic
       for (const topic of selectedTopics) {
         const subject = subjects.find(s => s.topics.includes(topic));
         if (subject) {
-          const subjectName = subject.name.toLowerCase().replace(/\s+/g, '_');
-          const topicName = topic.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_:/]/g, '');
+          // Clean subject name for Firestore path (more lenient sanitization)
+          const subjectName = subject.name.toLowerCase()
+            .replace(/\s+/g, '_')
+            .replace(/[^a-z0-9_]/g, '');
+          
+          // Clean topic name for Firestore path (more lenient sanitization) 
+          const topicName = topic.toLowerCase()
+            .replace(/\s+/g, '_')
+            .replace(/[^a-z0-9_]/g, '');
           
           const topicAnswers = finalAnswers.filter(a => a.topic === topic);
           const correctAnswers = topicAnswers.filter(a => a.isCorrect).length;
           const score = topicAnswers.length > 0 ? Math.round((correctAnswers / topicAnswers.length) * 100) : 0;
           
-          // Create the topic document in the correct Firebase structure
-          const topicRef = doc(db, `users/${userId}/subjects/${subjectName}/topics`, topicName);
-          await setDoc(topicRef, {
+          // Build the complete path for debugging
+          const topicPath = `users/${userId}/subjects/${subjectName}/topics/${topicName}`;
+          console.log('📝 Saving to path:', topicPath);
+          console.log('📊 Topic data:', { topic, subject: subject.name, subjectName, topicName, score });
+          
+          // Use the correct nested structure as specified in README
+          const topicRef = doc(db, 'users', userId, 'subjects', subjectName, 'topics', topicName);
+          const topicData = {
+            userId: userId,
             topicId: topicName,
-            expertiseLevel: evaluationResults.expertiseLevel || evaluationResults.level || 'beginner',
+            subjectId: subjectName,
+            originalTopicName: topic,
+            originalSubjectName: subject.name,
+            expertiseLevel: evaluationResults?.expertiseLevel || evaluationResults?.level || 'beginner',
             lastStudied: Timestamp.now(),
             evaluationScore: score,
             totalQuestions: topicAnswers.length,
             correctAnswers: correctAnswers,
-            quizDate: Timestamp.now()
-          }, { merge: true });
+            quizDate: Timestamp.now(),
+            answers: topicAnswers.map(a => ({
+              questionId: a.questionId,
+              userAnswer: a.userAnswer,
+              correctAnswer: a.correctAnswer,
+              isCorrect: a.isCorrect,
+              difficulty: a.difficulty
+            }))
+          };
           
-          console.log(`Saved expertise level for ${topic}: ${evaluationResults.expertiseLevel || evaluationResults.level}`);
+          await setDoc(topicRef, topicData, { merge: true });
+          console.log(`✅ Saved expertise data for ${topic} -> ${topicPath}`);
+          console.log('💾 Saved data:', topicData);
         }
       }
       
+      console.log('🎉 All quiz results saved successfully');
+      
     } catch (err) {
-      console.error('Failed to save quiz results:', err);
+      console.error('❌ Failed to save quiz results:', err);
+      console.error('Error details:', err.message);
+      // Don't throw - let the app continue even if save fails
     }
   };
 

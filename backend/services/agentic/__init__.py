@@ -3,8 +3,16 @@ Agentic AI Services
 Multi-agent collaboration for educational evaluation and content generation
 """
 
-from .evaluation import MeshAgenticEvaluationService
-from .quiz_generation import EvaluationQuizAgent
+# Conditional imports to avoid hanging on missing dependencies
+try:
+    from .evaluation import MeshAgenticEvaluationService
+except Exception:
+    MeshAgenticEvaluationService = None
+
+try:
+    from .quiz_generation import EvaluationQuizAgent
+except Exception:
+    EvaluationQuizAgent = None
 
 # Import TimeLimitedStrandsEvaluationService from the original location
 try:
@@ -14,7 +22,7 @@ try:
     sys.path.append(os.path.dirname(os.path.dirname(__file__)))
     from agenticEvaluation import TimeLimitedStrandsEvaluationService
     TIME_LIMITED_AVAILABLE = True
-except ImportError as e:
+except Exception as e:
     print(f"Warning: TimeLimitedStrandsEvaluationService not available: {e}")
     TimeLimitedStrandsEvaluationService = None
     TIME_LIMITED_AVAILABLE = False

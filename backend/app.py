@@ -8,6 +8,9 @@ from flask_cors import CORS
 import logging
 import os
 
+# AWS credentials will be loaded from environment variables or AWS credentials file
+# Remove hardcoded credentials for security
+
 # Import configuration
 from config import get_config
 

@@ -2,9 +2,26 @@
 
 This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
 
+## Running the App
+
+1. Start the Backend (Flask + Strands AI):
+
+cd /Users/gabrielyap/nurture/backend
+BACKEND_PORT=5001 python app.py
+
+2. Start the Frontend (React):
+
+cd /Users/gabrielyap/nurture/nurture-app
+npm start
+
+3. Open Your Browser:
+
+- Go to: http://localhost:3000
+
 ## Available Scripts
 
 In the project directory, you can run:
+AWS
 
 ### `npm start`
 

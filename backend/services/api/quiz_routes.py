@@ -101,11 +101,26 @@ def start_quiz():
                 
             except Exception as e:
                 logger.error(f"Error in background quiz generation: {e}")
-                quiz_progress[session_id].update({
-                    'status': 'error',
-                    'message': f'Quiz generation failed: {str(e)}',
-                    'end_time': datetime.now().isoformat()
-                })
+                # Fall back to simple quiz generation
+                logger.info(f"Falling back to simple quiz generation for topics: {selected_topics}")
+                try:
+                    from app import generate_fallback_quiz as app_fallback_quiz
+                    fallback_response = app_fallback_quiz(selected_topics, session_id)
+                    fallback_data = fallback_response.get_json()
+                    
+                    quiz_progress[session_id].update({
+                        'status': 'completed',
+                        'message': 'Quiz generated using fallback system',
+                        'quiz_data': fallback_data['quiz_data'],
+                        'end_time': datetime.now().isoformat()
+                    })
+                except Exception as fallback_error:
+                    logger.error(f"Fallback quiz generation also failed: {fallback_error}")
+                    quiz_progress[session_id].update({
+                        'status': 'error',
+                        'message': f'Quiz generation failed: {str(e)}',
+                        'end_time': datetime.now().isoformat()
+                    })
         
         # Start background generation
         threading.Thread(target=generate_quiz_with_progress, daemon=True).start()

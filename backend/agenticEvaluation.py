@@ -69,10 +69,10 @@ class TimeLimitedStrandsEvaluationService:
         
         # Phase time allocation (adaptive)
         self.phase_time_budget = {
-            'setup': 30,           # 30 seconds for network setup
-            'agent_analysis': 180, # 3 minutes for agent discussions  
-            'swarm_consensus': 90, # 1.5 minutes for swarm
-            'final_synthesis': 20  # 20 seconds for final assessment
+            'setup': 10,           # 10 seconds for network setup
+            'agent_analysis': 30,  # 30 seconds for agent discussions  
+            'swarm_consensus': 15, # 15 seconds for swarm
+            'final_synthesis': 5   # 5 seconds for final assessment
         }
         
         # Adaptive response lengths based on time pressure

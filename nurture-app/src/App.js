@@ -11,6 +11,8 @@ import EvaluationQuiz from './components/EvaluationQuiz';
 import QuizSession from './components/QuizSession';
 import PrivateRoute from './components/PrivateRoute';
 import ErrorBoundary from './components/ErrorBoundary';
+import StudySessionSetup from './components/StudySessionSetup';
+import StudySession from './components/StudySession';
 
 function App() {
   const [user, setUser] = useState(null);
@@ -51,6 +53,8 @@ function App() {
             <Route path="/dashboard" element={<PrivateRoute user={user}><Dashboard user={user} /></PrivateRoute>} />
             <Route path="/quiz" element={<PrivateRoute user={user}><EvaluationQuiz user={user} /></PrivateRoute>} />
             <Route path="/quiz-session" element={<PrivateRoute user={user}><QuizSession user={user} /></PrivateRoute>} />
+            <Route path="/study-setup" element={<PrivateRoute user={user}><StudySessionSetup /></PrivateRoute>} />
+            <Route path="/study-session" element={<PrivateRoute user={user}><StudySession /></PrivateRoute>} />
 
             {/* Redirect to dashboard if logged in, otherwise to login */}
             <Route path="/" element={<Navigate to={user ? "/dashboard" : "/login"} />} />

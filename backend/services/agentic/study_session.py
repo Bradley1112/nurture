@@ -25,8 +25,8 @@ import os
 
 # AWS Strands SDK imports
 try:
-    from strands import Agent, tool, runtime
-    from strands_tools import swarm
+    from strands import Agent, tool
+    from strands_tools import use_aws  # Available AWS tools
     STRANDS_AVAILABLE = True
 except ImportError as e:
     logging.warning(f"AWS Strands SDK not available: {e}")
@@ -889,44 +889,20 @@ Always prioritize student mental and physical wellbeing:
                         
                 elif agent_id == "tutor":
                     if mode == "learning":
-                        response_text = await agent.tools[0](  # ask_socratic_question
-                            topic=context.topic_id,
-                            student_response=student_message,
-                            learning_objective="concept_understanding"
-                        )
+                        prompt = f"Ask a Socratic question about '{context.topic_id}' to help the student who said: '{student_message}'. Guide their understanding through questioning."
+                        response_text = await agent(prompt)
                     else:  # practice  
-                        feedback = await agent.tools[1](  # provide_detailed_feedback
-                            student_answer=student_message,
-                            correct_answer="[Correct answer would be provided]",
-                            topic=context.topic_id,
-                            question_type="structured"
-                        )
-                        response_text = f"**Feedback on your answer:**\n{feedback['analysis']}\n\n**Technique:** {feedback['technique']}"
+                        prompt = f"Provide detailed feedback on this student answer: '{student_message}' for the topic '{context.topic_id}'. Include O-Level answering techniques."
+                        response_text = await agent(prompt)
                         
                 elif agent_id == "perfect_scorer":
                     if mode == "learning":
-                        visual_aid = await agent.tools[0](  # create_visual_aid
-                            topic=context.topic_id,
-                            concept="main_topic",
-                            aid_type="mind_map"
-                        )
-                        response_text = f"**Visual Learning Aid:**\n{visual_aid['visual_aid']}\n\n**Tip:** {visual_aid['usage_tip']}"
+                        prompt = f"Create visual learning aids for the topic '{context.topic_id}'. Generate mind maps, diagrams, or mnemonics to help a {context.expertise_level} student remember and understand the concepts."
+                        response_text = await agent(prompt)
                     else:  # practice
-                        response_text = await agent.tools[1](  # simulate_peer_study
-                            topic=context.topic_id,
-                            concept="main_concept"
-                        )
+                        prompt = f"Simulate a peer study session for '{context.topic_id}'. Help the student explain the concept back to reinforce learning. Student said: '{student_message}'"
+                        response_text = await agent(prompt)
                 
-                # Check wellbeing if perfect_scorer agent
-                if agent_id == "perfect_scorer":
-                    wellbeing = await agent.tools[2](  # check_wellbeing
-                        stress_level=context.stress_level,
-                        focus_level=context.focus_level,
-                        session_duration=45  # Approximate
-                    )
-                    if wellbeing["suggestions"]:
-                        response_text += f"\n\n**Wellbeing Check:** {wellbeing['encouragement']}"
-            
             else:
                 # Fallback responses when Strands not available
                 response_text = f"[SIMULATION] {agent_id.title()} agent would provide {mode} content for {context.topic_id} here."

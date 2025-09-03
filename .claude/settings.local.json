@@ -15,7 +15,11 @@
       "Bash(PORT=3001 npm start)",
       "Bash(BACKEND_PORT=5000 python app.py)",
       "WebFetch(domain:strandsagents.com)",
-      "Bash(aws configure:*)"
+      "Bash(aws configure:*)",
+      "Bash(npm install)",
+      "Bash(npm run build:*)",
+      "Bash(PORT=3000 npm start)",
+      "Bash(BACKEND_PORT=5000 python backend/app.py)"
     ],
     "deny": [],
     "ask": []

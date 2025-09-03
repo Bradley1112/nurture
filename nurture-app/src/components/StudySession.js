@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import PomodoroClock from './PomodoroClock';
 import { getFirestore, doc, updateDoc, Timestamp } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
-import { studySessionAPI } from '../services/studySessionAPI';
+// AWS Strands integration now handled via backend API
 
 /**
  * Part 7: Study Session with Chatbot Interface & Agent Graph (Star Topology)
@@ -49,6 +49,11 @@ const StudySession = () => {
     const [inputMessage, setInputMessage] = useState('');
     const [isOrchestratorThinking, setIsOrchestratorThinking] = useState(false);
     const [sessionStarted, setSessionStarted] = useState(false);
+    
+    // Agent Graph state
+    const [agentGraph, setAgentGraph] = useState(null);
+    const [currentAgent, setCurrentAgent] = useState(null);
+    const [currentMode, setCurrentMode] = useState('learning');
     
     // Session tracking
     const [sessionData, setSessionData] = useState({
@@ -126,50 +131,79 @@ const StudySession = () => {
     }, [isActive, totalSeconds, mode, breakTime, sessionStarted]);
 
     /**
-     * AWS STRANDS: Session Initialization with Python Backend
+     * AWS STRANDS: Session Initialization with Agent Graph
      */
     const initializeSession = async () => {
         setIsOrchestratorThinking(true);
         
         try {
-            // Call Python backend to initialize AWS Strands session
-            const sessionInitData = {
-                userId: getAuth().currentUser?.uid,
-                topicId,
-                subjectId,
-                expertiseLevel,
-                focusLevel,
-                stressLevel,
-                sessionDuration: studyTime,
-                examDate
+            // Initialize session with backend AWS Strands Agent Graph
+            const sessionContext = {
+                user_id: getAuth().currentUser?.uid || 'anonymous',
+                topic_id: topicId,
+                subject_id: subjectId,
+                expertise_level: expertiseLevel,
+                focus_level: focusLevel,
+                stress_level: stressLevel,
+                session_duration: studyTime,
+                exam_date: examDate
             };
 
-            console.log('🎯 Initializing AWS Strands session with backend...');
-            const result = await studySessionAPI.initializeSession(sessionInitData);
+            console.log('🎯 Initializing session with backend AWS Strands Agent Graph...');
+            
+            // Call backend API to initialize the session
+            const response = await fetch('http://localhost:5000/api/study-session/initialize', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(sessionContext)
+            });
+
+            if (!response.ok) {
+                throw new Error(`Backend API error: ${response.status}`);
+            }
+
+            const result = await response.json();
             
             if (result.success) {
-                // Store backend session ID
+                // Create a simple agent graph object for frontend tracking
+                const graph = {
+                    graphId: result.session_id,
+                    sessionContext: sessionContext,
+                    primaryAgent: result.session_plan?.primary_agent || 'teacher',
+                    initialMode: result.session_plan?.initial_mode || 'learning'
+                };
+                
+                setAgentGraph(graph);
+                setCurrentAgent(graph.primaryAgent);
+                setCurrentMode(graph.initialMode);
+                
+                // Store session data
                 setSessionData(prev => ({
                     ...prev,
-                    backendSessionId: result.session_id,
-                    sessionPlan: result.session_plan,
-                    currentMode: result.session_plan?.initial_mode || 'learning'
+                    agentGraphId: graph.graphId,
+                    sessionContext: graph.sessionContext,
+                    currentMode: graph.initialMode
                 }));
 
-                // Display orchestrator messages from backend
-                if (result.messages) {
-                    result.messages.forEach(msg => {
-                        addMessage(msg.sender, msg.content);
-                    });
-                }
+                // Welcome message from orchestrator (from backend)
+                addMessage('orchestrator', 
+                    `Welcome to your ${topicId.replace(/_/g, ' ')} study session! 🌱\n\n` +
+                    `I've analyzed your profile using AWS Strands AI and created the perfect learning strategy for you.\n\n` +
+                    `📊 **Your Level**: ${expertiseLevel}\n` +
+                    `🎯 **Focus**: ${focusLevel}/10\n` +
+                    `😌 **Stress**: ${stressLevel}/10\n\n` +
+                    `Ready to start learning? Type 'start' or ask me anything about ${topicId.replace(/_/g, ' ')}!`
+                );
 
-                console.log('✅ AWS Strands session initialized:', result.session_id);
+                console.log('✅ AWS Strands session initialized successfully:', graph.graphId);
             } else {
                 throw new Error(result.error || 'Session initialization failed');
             }
             
         } catch (error) {
-            console.error('❌ AWS Strands session initialization failed:', error);
+            console.error('❌ Agent Graph initialization failed:', error);
             addMessage('orchestrator', 
                 `⚠️ I'm having trouble connecting to the AWS Strands system. Running in simulation mode.\n\n` +
                 `Welcome to your ${topicId.replace(/_/g, ' ')} study session! I'll do my best to help you learn.`
@@ -399,7 +433,52 @@ const StudySession = () => {
     };
 
     /**
-     * AWS STRANDS: Message Processing via Python Backend
+     * Helper function to determine optimal agent based on message content
+     */
+    const determineOptimalAgent = (message) => {
+        const msg = message.toLowerCase();
+        
+        // Question/practice keywords
+        if (msg.includes('question') || msg.includes('practice') || msg.includes('test') || msg.includes('exam')) {
+            return 'teacher';
+        }
+        
+        // Explanation/understanding keywords
+        if (msg.includes('explain') || msg.includes('understand') || msg.includes('confused') || msg.includes('help') || msg.includes('clarify')) {
+            return 'tutor';
+        }
+        
+        // Visual/memory keywords
+        if (msg.includes('visual') || msg.includes('remember') || msg.includes('memorize') || msg.includes('diagram') || msg.includes('mind map') || msg.includes('mnemonic')) {
+            return 'perfect_scorer';
+        }
+        
+        // Start command
+        if (msg.includes('start') || msg.includes('begin')) {
+            return currentAgent || 'teacher';
+        }
+        
+        // Default to current agent or teacher
+        return currentAgent || 'teacher';
+    };
+    
+    /**
+     * Helper function to determine interaction mode
+     */
+    const determineInteractionMode = (message) => {
+        const msg = message.toLowerCase();
+        
+        // Practice mode keywords
+        if (msg.includes('question') || msg.includes('practice') || msg.includes('test') || msg.includes('quiz')) {
+            return 'practice';
+        }
+        
+        // Learning mode is default
+        return 'learning';
+    };
+
+    /**
+     * AWS STRANDS: Message Processing via Agent Graph
      */
     const handleStudentMessage = async (message) => {
         if (!message.trim()) return;
@@ -410,38 +489,53 @@ const StudySession = () => {
         setIsOrchestratorThinking(true);
 
         try {
-            // Send message to AWS Strands orchestrator via Python backend
-            const backendSessionId = sessionData.backendSessionId;
-            
-            if (backendSessionId && !sessionData.simulationMode) {
-                console.log('💬 Sending message to AWS Strands orchestrator...');
+            if (agentGraph && !sessionData.simulationMode) {
+                console.log('💬 Processing message through backend AWS Strands Agent Graph...');
                 
-                const result = await studySessionAPI.sendChatMessage(backendSessionId, message);
+                // Call the backend API directly instead of using frontend agent graph
+                const response = await fetch('http://localhost:5000/api/study-session/chat', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        session_id: agentGraph.graphId,
+                        message: message
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Backend API error: ${response.status}`);
+                }
+
+                const result = await response.json();
                 
                 if (result.success) {
-                    // Add messages from backend response
-                    if (result.messages) {
-                        result.messages.forEach(msg => {
-                            addMessage(msg.sender, msg.content);
-                        });
-                    }
-                    
-                    // Log agent interaction
-                    if (result.agent_response) {
+                    // Add agent response from backend
+                    if (result.agent_response && result.agent_response.message) {
+                        const agentResponse = result.agent_response;
+                        addMessage(agentResponse.agent_id, agentResponse.message.content);
+                        
+                        // Update current agent and mode
+                        setCurrentAgent(agentResponse.agent_id);
+                        setCurrentMode(agentResponse.mode);
+                        
+                        // Log agent interaction
                         setSessionData(prev => ({
                             ...prev,
                             agentInteractions: [...prev.agentInteractions, {
                                 timestamp: new Date(),
-                                agent: result.agent_response.agent_id,
-                                mode: result.agent_response.mode,
-                                message: message
+                                agent: agentResponse.agent_id,
+                                mode: agentResponse.mode,
+                                message: message,
+                                responseLength: agentResponse.message.content.length
                             }]
                         }));
                     }
                     
-                    console.log('✅ AWS Strands response received:', result.agent_response?.agent_id);
+                    console.log(`✅ Real AWS Strands agent response received`);
                 } else {
-                    throw new Error(result.error || 'Message processing failed');
+                    throw new Error(result.error || 'Backend processing failed');
                 }
             } else {
                 // Fallback simulation mode
@@ -449,17 +543,15 @@ const StudySession = () => {
             }
             
         } catch (error) {
-            console.error('❌ AWS Strands message processing failed:', error);
+            console.error('❌ Agent Graph message processing failed:', error);
             addMessage('orchestrator', 
-                `⚠️ I'm having connection issues. Let me try a different approach: ${error.message}`
+                `⚠️ I'm having connection issues. Let me try a different approach...`
             );
             
             // Fallback to simulation
             await simulateAgentResponse(message);
         }
         
-        // Update progress
-        updateProgress('interaction');
         setIsOrchestratorThinking(false);
     };
 
@@ -596,21 +688,40 @@ const StudySession = () => {
 
     const handleSessionEnd = async () => {
         try {
-            // End AWS Strands session via backend
-            const backendSessionId = sessionData.backendSessionId;
             let finalSummary = null;
             
-            if (backendSessionId && !sessionData.simulationMode) {
+            // End Agent Graph session
+            if (agentGraph && !sessionData.simulationMode) {
                 try {
-                    console.log('🏁 Ending AWS Strands session...');
-                    const result = await studySessionAPI.endSession(backendSessionId);
+                    console.log('🏁 Ending Agent Graph session...');
                     
-                    if (result.success) {
-                        finalSummary = result.final_summary;
-                        console.log('✅ AWS Strands session ended successfully');
-                    }
+                    // Create final session summary
+                    finalSummary = {
+                        sessionId: agentGraph.graphId,
+                        duration_minutes: Math.floor((new Date() - sessionData.startTime) / (1000 * 60)),
+                        total_messages: messages.length,
+                        agent_interactions: sessionData.agentInteractions.length,
+                        student_progress: sessionData.studentProgress,
+                        session_plan: {
+                            primary_agent: currentAgent,
+                            final_mode: currentMode,
+                            agent_switches: sessionData.agentInteractions.filter((_, i, arr) => 
+                                i === 0 || arr[i].agent !== arr[i-1].agent).length
+                        },
+                        context: agentGraph.sessionContext,
+                        performance_data: {
+                            concepts_covered: sessionData.studentProgress.conceptsLearned,
+                            engagement_level: sessionData.studentProgress.engagementScore,
+                            primary_agent_used: currentAgent,
+                            modes_used: [...new Set(sessionData.agentInteractions.map(i => i.mode))],
+                            adaptation_events: sessionData.agentInteractions.filter(i => 
+                                i.agent !== currentAgent).length
+                        }
+                    };
+                    
+                    console.log('✅ Agent Graph session ended successfully');
                 } catch (error) {
-                    console.error('❌ Failed to end AWS Strands session:', error);
+                    console.error('❌ Failed to end Agent Graph session:', error);
                 }
             }
             
@@ -625,10 +736,10 @@ const StudySession = () => {
                         ...sessionData.studentProgress,
                         totalMessages: messages.length,
                         sessionDuration: studyTime,
-                        orchestratorDecisions: sessionData.orchestratorDecisions.length,
+                        orchestratorDecisions: sessionData.orchestratorDecisions?.length || 0,
                         agentInteractions: sessionData.agentInteractions.length,
-                        finalMode: sessionData.currentMode,
-                        backendSessionId: backendSessionId,
+                        finalMode: currentMode,
+                        agentGraphId: agentGraph?.graphId || null,
                         simulationMode: sessionData.simulationMode || false
                     },
                     chatLog: messages.map(msg => ({

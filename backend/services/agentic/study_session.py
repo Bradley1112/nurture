@@ -1009,7 +1009,37 @@ After you explain, I'll give you feedback on your explanation and we can discuss
                         
                 elif agent_id == "tutor":
                     if mode == "learning":
-                        prompt = f"The student responded: '{student_message}' to your previous question about '{context.topic_id}'. First, acknowledge their response and provide feedback on their thinking. Then, if appropriate, ask a follow-up Socratic question to guide their understanding deeper. Use the Socratic method to help them discover insights themselves."
+                        # Get recent conversation history for context
+                        recent_messages = session_data.messages[-4:] if len(session_data.messages) >= 4 else session_data.messages
+                        conversation_history = []
+                        for msg in recent_messages[-3:]:
+                            sender = msg.get('sender', 'unknown')
+                            content = msg.get('content', '')
+                            # Handle nested content structure
+                            if isinstance(content, dict) and 'content' in content:
+                                if isinstance(content['content'], list) and content['content']:
+                                    content = content['content'][0].get('text', str(content))
+                            conversation_history.append(f"{sender}: {content}")
+                        conversation_context = "\n".join(conversation_history)
+                        
+                        prompt = f"""You are a Socratic tutor having a conversation with a student about '{context.topic_id}'. 
+
+IMPORTANT: The student is NOT asking you to generate content. They are answering your previous question or making an observation. DO NOT say they are "asking for content generation."
+
+Recent conversation:
+{conversation_context}
+
+The student just responded: "{student_message}"
+
+Your job: Continue this Socratic dialogue naturally by:
+1. Acknowledging what they said (e.g., "Excellent observation!" or "That's a good start...")  
+2. Building on their response
+3. Asking a follow-up question that guides them to discover more
+
+Example response format:
+"Great thinking! You noticed [acknowledge their response]. Now, building on that... [follow-up question]"
+
+DO NOT mention "content generation" or assume they want you to create materials."""
                         result = await agent.invoke_async(prompt)
                         response_text = result.message
                     else:  # practice  

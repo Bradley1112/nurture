@@ -313,7 +313,10 @@ class StudySessionOrchestrator:
         # self.agent = StudyOrchestrator()
 
         # WORKING VERSION - Compatible with current Strands SDK
-        self.agent = Agent("Study Orchestrator")
+        self.agent = Agent(
+            model="anthropic.claude-sonnet-4-20250514-v1:0",
+            name="Study Orchestrator"
+        )
         # Attach the tools to the agent (both as attributes and array for compatibility)
         self.agent.analyze_student_profile = analyze_student_profile
         self.agent.route_student_message = route_student_message 
@@ -446,7 +449,10 @@ Ready to try a practice problem?"""
         # self.specialized_agents["teacher"] = TeacherAgent()
 
         # WORKING VERSION - Compatible with current Strands SDK
-        self.specialized_agents["teacher"] = Agent("Teacher Agent")
+        self.specialized_agents["teacher"] = Agent(
+            model="anthropic.claude-sonnet-4-20250514-v1:0",
+            name="Teacher Agent"
+        )
         # Attach the tools to the agent (both as attributes and array for compatibility)
         self.specialized_agents["teacher"].explain_concept = explain_concept
         self.specialized_agents["teacher"].generate_practice_question = generate_practice_question
@@ -544,7 +550,10 @@ Ready to try a practice problem?"""
         # self.specialized_agents["tutor"] = TutorAgent()
 
         # WORKING VERSION - Compatible with current Strands SDK
-        self.specialized_agents["tutor"] = Agent("Tutor Agent")
+        self.specialized_agents["tutor"] = Agent(
+            model="anthropic.claude-sonnet-4-20250514-v1:0",
+            name="Tutor Agent"
+        )
         # Attach the tools to the agent (both as attributes and array for compatibility)
         self.specialized_agents["tutor"].ask_socratic_question = ask_socratic_question
         self.specialized_agents["tutor"].provide_detailed_feedback = provide_detailed_feedback
@@ -703,7 +712,10 @@ After you explain, I'll give you feedback on your explanation and we can discuss
         # self.specialized_agents["perfect_scorer"] = PerfectScorerAgent()
 
         # WORKING VERSION - Compatible with current Strands SDK
-        self.specialized_agents["perfect_scorer"] = Agent("Perfect Scorer Agent")
+        self.specialized_agents["perfect_scorer"] = Agent(
+            model="anthropic.claude-sonnet-4-20250514-v1:0",
+            name="Perfect Scorer Agent"
+        )
         # Attach the tools to the agent (both as attributes and array for compatibility)
         self.specialized_agents["perfect_scorer"].create_visual_aid = create_visual_aid
         self.specialized_agents["perfect_scorer"].simulate_peer_study = simulate_peer_study

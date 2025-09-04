@@ -112,7 +112,7 @@ class StudySessionOrchestrator:
         """Initialize the central orchestrator agent"""
         
         @tool
-        def analyze_student_profile(
+        async def analyze_student_profile(
             expertise_level: str,
             focus_level: int,
             stress_level: int,
@@ -191,7 +191,7 @@ class StudySessionOrchestrator:
             }
 
         @tool
-        def route_student_message(message: str, session_context: Dict[str, Any]) -> Dict[str, str]:
+        async def route_student_message(message: str, session_context: Dict[str, Any]) -> Dict[str, str]:
             """Determine which agent to call based on student message"""
             
             msg = message.lower()
@@ -240,8 +240,8 @@ class StudySessionOrchestrator:
                 "orchestrator_message": ""
             }
 
-        @tool
-        def reassess_session_progress(
+        @tool   
+        async def reassess_session_progress(
             student_progress: Dict[str, Any],
             session_plan: Dict[str, Any]
         ) -> Dict[str, Any]:
@@ -284,27 +284,42 @@ class StudySessionOrchestrator:
                 "confidence": min(100, max(0, (accuracy + engagement) / 2))
             }
 
-        # Initialize orchestrator agent with tools
-        self.agent = Agent(
-            name="Study Orchestrator",
-            instructions="""You are the Study Orchestrator - the central hub of a study session agent graph.
+        # ORIGINAL CODE - COMMENTED OUT DUE TO STRANDS SDK COMPATIBILITY
+        # @Agent
+        # class StudyOrchestrator:
+        #     """Study Orchestrator - the central hub of a study session agent graph.
+        #     
+        #     Primary responsibilities:
+        #     1. Analyze student profiles (expertise, focus, stress levels) and create optimal session plans
+        #     2. Route student messages to appropriate specialized agents (Teacher, Tutor, Perfect Scorer)
+        #     3. Make real-time decisions about learning/practice balance
+        #     4. Coordinate all agent interactions for a seamless experience
+        #     5. Track session progress and adapt strategy as needed
+        #     
+        #     Manages three specialized agents:
+        #     - Teacher Agent: Content delivery and exam-style questions
+        #     - Tutor Agent: Socratic questioning and answer techniques  
+        #     - Perfect Scorer Agent: Visual aids and student wellbeing
+        #     
+        #     Always explain your reasoning when making decisions. Be encouraging and supportive.
+        #     Focus on Singapore O-Level curriculum standards.
+        #     """
+        #     
+        #     def __init__(self):
+        #         self.analyze_student_profile = analyze_student_profile
+        #         self.route_student_message = route_student_message 
+        #         self.reassess_session_progress = reassess_session_progress
+        # 
+        # self.agent = StudyOrchestrator()
 
-Your primary responsibilities:
-1. Analyze student profiles (expertise, focus, stress levels) and create optimal session plans
-2. Route student messages to appropriate specialized agents (Teacher, Tutor, Perfect Scorer)
-3. Make real-time decisions about learning/practice balance
-4. Coordinate all agent interactions for a seamless experience
-5. Track session progress and adapt strategy as needed
-
-You manage three specialized agents:
-- Teacher Agent: Content delivery and exam-style questions
-- Tutor Agent: Socratic questioning and answer techniques  
-- Perfect Scorer Agent: Visual aids and student wellbeing
-
-Always explain your reasoning when making decisions. Be encouraging and supportive.
-Focus on Singapore O-Level curriculum standards.""",
-            tools=[analyze_student_profile, route_student_message, reassess_session_progress]
-        )
+        # WORKING VERSION - Compatible with current Strands SDK
+        self.agent = Agent("Study Orchestrator")
+        # Attach the tools to the agent (both as attributes and array for compatibility)
+        self.agent.analyze_student_profile = analyze_student_profile
+        self.agent.route_student_message = route_student_message 
+        self.agent.reassess_session_progress = reassess_session_progress
+        # Create tools array for backward compatibility
+        self.agent.tools = [analyze_student_profile, route_student_message, reassess_session_progress]
 
     def _initialize_specialized_agents(self):
         """Initialize the three specialized agents"""
@@ -404,25 +419,39 @@ Ready to try a practice problem?"""
                 "technique": "Standard O-Level answering approach"
             })
 
-        self.specialized_agents["teacher"] = Agent(
-            name="Teacher Agent",
-            instructions="""You are the Teacher Agent specializing in Singapore O-Level curriculum delivery.
+        # ORIGINAL TEACHER AGENT CODE - COMMENTED OUT DUE TO STRANDS SDK COMPATIBILITY
+        # @Agent  
+        # class TeacherAgent:
+        #     """Teacher Agent specializing in Singapore O-Level curriculum delivery.
+        #     
+        #     In LEARNING mode:
+        #     - Provide engaging, well-structured explanations in digestible chunks
+        #     - Never content dump - break complex topics into understandable parts
+        #     - Connect new concepts to previously learned material
+        #     - Use real-world examples relevant to Singapore students
+        #
+        #     In PRACTICE mode:  
+        #     - Generate curated, exam-style questions appropriate for student's expertise level
+        #     - Provide complete answers with working steps
+        #     - Focus on Singapore O-Level question formats and marking schemes
+        #     - Always include answering techniques and exam tips
+        #
+        #     Priority: Ensure student completes content on time before exam with sufficient practice.
+        #     """
+        #     
+        #     def __init__(self):
+        #         self.explain_concept = explain_concept
+        #         self.generate_practice_question = generate_practice_question
+        # 
+        # self.specialized_agents["teacher"] = TeacherAgent()
 
-In LEARNING mode:
-- Provide engaging, well-structured explanations in digestible chunks
-- Never content dump - break complex topics into understandable parts
-- Connect new concepts to previously learned material
-- Use real-world examples relevant to Singapore students
-
-In PRACTICE mode:  
-- Generate curated, exam-style questions appropriate for student's expertise level
-- Provide complete answers with working steps
-- Focus on Singapore O-Level question formats and marking schemes
-- Always include answering techniques and exam tips
-
-Your priority: Ensure student completes content on time before exam with sufficient practice.""",
-            tools=[explain_concept, generate_practice_question]
-        )
+        # WORKING VERSION - Compatible with current Strands SDK
+        self.specialized_agents["teacher"] = Agent("Teacher Agent")
+        # Attach the tools to the agent (both as attributes and array for compatibility)
+        self.specialized_agents["teacher"].explain_concept = explain_concept
+        self.specialized_agents["teacher"].generate_practice_question = generate_practice_question
+        # Create tools array for backward compatibility
+        self.specialized_agents["teacher"].tools = [explain_concept, generate_practice_question]
 
         # TUTOR AGENT  
         @tool
@@ -487,26 +516,40 @@ Your priority: Ensure student completes content on time before exam with suffici
             
             return feedback
 
-        self.specialized_agents["tutor"] = Agent(
-            name="Tutor Agent", 
-            instructions="""You are the Tutor Agent focused on deep conceptual understanding through the Socratic method.
+        # ORIGINAL TUTOR AGENT CODE - COMMENTED OUT DUE TO STRANDS SDK COMPATIBILITY
+        # @Agent
+        # class TutorAgent:
+        #     """Tutor Agent focused on deep conceptual understanding through the Socratic method.
+        #
+        #     In LEARNING mode:
+        #     - Ask interactive questions that guide students to discover insights themselves
+        #     - Promote conceptual understanding over rote memorization
+        #     - Build on student responses with follow-up questions
+        #     - Help students make connections between concepts
+        #
+        #     In PRACTICE mode:
+        #     - Provide detailed feedback on student answers
+        #     - Include correct answers with clear explanations
+        #     - Teach Singapore O-Level specific answering techniques
+        #     - Focus on keyword usage, answer structure, and time management
+        #     - Show how to approach similar questions systematically
+        #
+        #     Priority: Ensure students truly understand the topic, not just memorize it.
+        #     """
+        #     
+        #     def __init__(self):
+        #         self.ask_socratic_question = ask_socratic_question
+        #         self.provide_detailed_feedback = provide_detailed_feedback
+        # 
+        # self.specialized_agents["tutor"] = TutorAgent()
 
-In LEARNING mode:
-- Ask interactive questions that guide students to discover insights themselves
-- Promote conceptual understanding over rote memorization
-- Build on student responses with follow-up questions
-- Help students make connections between concepts
-
-In PRACTICE mode:
-- Provide detailed feedback on student answers
-- Include correct answers with clear explanations
-- Teach Singapore O-Level specific answering techniques
-- Focus on keyword usage, answer structure, and time management
-- Show how to approach similar questions systematically
-
-Your priority: Ensure students truly understand the topic, not just memorize it.""",
-            tools=[ask_socratic_question, provide_detailed_feedback]
-        )
+        # WORKING VERSION - Compatible with current Strands SDK
+        self.specialized_agents["tutor"] = Agent("Tutor Agent")
+        # Attach the tools to the agent (both as attributes and array for compatibility)
+        self.specialized_agents["tutor"].ask_socratic_question = ask_socratic_question
+        self.specialized_agents["tutor"].provide_detailed_feedback = provide_detailed_feedback
+        # Create tools array for backward compatibility
+        self.specialized_agents["tutor"].tools = [ask_socratic_question, provide_detailed_feedback]
 
         # PERFECT SCORER AGENT
         @tool  
@@ -628,29 +671,45 @@ After you explain, I'll give you feedback on your explanation and we can discuss
                 "encouragement": "You're doing great! Learning is a process, and every step counts. 🌱"
             }
 
-        self.specialized_agents["perfect_scorer"] = Agent(
-            name="Perfect Scorer Agent",
-            instructions="""You are the Perfect Scorer Agent focused on visual learning aids and student wellbeing.
+        # ORIGINAL PERFECT SCORER AGENT CODE - COMMENTED OUT DUE TO STRANDS SDK COMPATIBILITY
+        # @Agent
+        # class PerfectScorerAgent:
+        #     """Perfect Scorer Agent focused on visual learning aids and student wellbeing.
+        #
+        #     In LEARNING mode:
+        #     - Create diagrams, mind maps, and visual representations (using Mermaid when appropriate)  
+        #     - Generate mnemonics and memory aids
+        #     - Use chunking and logical grouping for information organization
+        #     - Provide multiple visual learning modalities
+        #
+        #     In PRACTICE mode:
+        #     - Simulate peer study sessions
+        #     - Prompt students to explain concepts back in their own words
+        #     - Facilitate active recall and self-testing
+        #     - Provide feedback on student explanations
+        #
+        #     Always prioritize student mental and physical wellbeing:
+        #     - Monitor stress and fatigue levels
+        #     - Suggest breaks when needed
+        #     - Provide encouragement and positive reinforcement
+        #     - Consider individual learning preferences
+        #     """
+        #     
+        #     def __init__(self):
+        #         self.create_visual_aid = create_visual_aid
+        #         self.simulate_peer_study = simulate_peer_study
+        #         self.check_wellbeing = check_wellbeing
+        # 
+        # self.specialized_agents["perfect_scorer"] = PerfectScorerAgent()
 
-In LEARNING mode:
-- Create diagrams, mind maps, and visual representations (using Mermaid when appropriate)  
-- Generate mnemonics and memory aids
-- Use chunking and logical grouping for information organization
-- Provide multiple visual learning modalities
-
-In PRACTICE mode:
-- Simulate peer study sessions
-- Prompt students to explain concepts back in their own words
-- Facilitate active recall and self-testing
-- Provide feedback on student explanations
-
-Always prioritize student mental and physical wellbeing:
-- Monitor stress and fatigue levels
-- Suggest breaks when needed
-- Provide encouragement and positive reinforcement
-- Consider individual learning preferences""",
-            tools=[create_visual_aid, simulate_peer_study, check_wellbeing]
-        )
+        # WORKING VERSION - Compatible with current Strands SDK
+        self.specialized_agents["perfect_scorer"] = Agent("Perfect Scorer Agent")
+        # Attach the tools to the agent (both as attributes and array for compatibility)
+        self.specialized_agents["perfect_scorer"].create_visual_aid = create_visual_aid
+        self.specialized_agents["perfect_scorer"].simulate_peer_study = simulate_peer_study
+        self.specialized_agents["perfect_scorer"].check_wellbeing = check_wellbeing
+        # Create tools array for backward compatibility
+        self.specialized_agents["perfect_scorer"].tools = [create_visual_aid, simulate_peer_study, check_wellbeing]
 
     async def initialize_session(self, context: SessionContext) -> SessionData:
         """Initialize a new study session with orchestrator analysis"""

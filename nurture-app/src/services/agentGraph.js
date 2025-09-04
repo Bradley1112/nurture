@@ -256,14 +256,14 @@ const generateAgentSystemPrompt = (agentConfig, sessionContext) => {
         teacher: `You are an experienced Singapore O-Level Teacher Agent focused on curriculum delivery.
 
 Student Profile:
-- Level: \${sessionContext.expertiseLevel}
-- Topic: \${sessionContext.topicId}
-- Subject: \${sessionContext.subjectId}
-- Session Duration: \${sessionContext.sessionDuration}min
+- Level: ${sessionContext.expertiseLevel}
+- Topic: ${sessionContext.topicId}
+- Subject: ${sessionContext.subjectId}
+- Session Duration: ${sessionContext.sessionDuration}min
 
 LEARNING MODE: Provide engaging, well-structured explanations in digestible chunks. Never content dump. Use the content_explanation tool.
 
-PRACTICE MODE: Generate curated Singapore O-Level exam-style questions appropriate for \${sessionContext.expertiseLevel} level using question_generation tool.
+PRACTICE MODE: Generate curated Singapore O-Level exam-style questions appropriate for ${sessionContext.expertiseLevel} level using question_generation tool.
 
 Your Priority: Ensure student completes content on time before exam with sufficient practice opportunities.
 
@@ -276,10 +276,10 @@ Adapt content difficulty based on expertise level:
         tutor: `You are a patient Tutor Agent using the Socratic method to build deep understanding.
 
 Student Profile:
-- Level: \${sessionContext.expertiseLevel}
-- Topic: \${sessionContext.topicId}
-- Focus: \${sessionContext.focusLevel}/10
-- Stress: \${sessionContext.stressLevel}/10
+- Level: ${sessionContext.expertiseLevel}
+- Topic: ${sessionContext.topicId}
+- Focus: ${sessionContext.focusLevel}/10
+- Stress: ${sessionContext.stressLevel}/10
 
 LEARNING MODE: Ask interactive questions using interactive_questioning tool to guide student discoveries. Promote conceptual understanding over memorization.
 
@@ -298,10 +298,10 @@ Adjust approach based on stress/focus levels:
         perfect_scorer: `You are a Perfect Scorer Agent focused on visual learning and student wellbeing.
 
 Student Profile:
-- Level: \${sessionContext.expertiseLevel}
-- Stress Level: \${sessionContext.stressLevel}/10
-- Focus Level: \${sessionContext.focusLevel}/10
-- Topic: \${sessionContext.topicId}
+- Level: ${sessionContext.expertiseLevel}
+- Stress Level: ${sessionContext.stressLevel}/10
+- Focus Level: ${sessionContext.focusLevel}/10
+- Topic: ${sessionContext.topicId}
 
 LEARNING MODE: Create visual aids using your tools:
 - diagram_generator: Create Mermaid diagrams, flowcharts, concept maps
@@ -313,8 +313,8 @@ PRACTICE MODE: Simulate peer study sessions using peer_simulation tool. Prompt s
 Your Priority: Student mental and physical wellbeing. Monitor stress levels and prevent burnout.
 
 Wellbeing Considerations:
-- Stress Level \${sessionContext.stressLevel}/10: \${sessionContext.stressLevel > 7 ? 'High - provide calming techniques' : 'Manageable - continue normally'}
-- Focus Level \${sessionContext.focusLevel}/10: \${sessionContext.focusLevel < 5 ? 'Low - use engaging visuals' : 'Good - maintain current approach'}`
+- Stress Level ${sessionContext.stressLevel}/10: ${sessionContext.stressLevel > 7 ? 'High - provide calming techniques' : 'Manageable - continue normally'}
+- Focus Level ${sessionContext.focusLevel}/10: ${sessionContext.focusLevel < 5 ? 'Low - use engaging visuals' : 'Good - maintain current approach'}`
     };
     
     return prompts[agentConfig.agentId] || 'You are a study session agent.';
@@ -324,7 +324,7 @@ Wellbeing Considerations:
  * Activate Specific Agent
  */
 export const activateAgent = async (agentGraph, agentId, context) => {
-    console.log(`🔄 Activating \${agentId} agent...`);
+    console.log(`🔄 Activating ${agentId} agent...`);
     console.log('Context:', context);
     
     try {
@@ -333,13 +333,34 @@ export const activateAgent = async (agentGraph, agentId, context) => {
             throw new Error(`Agent ${agentId} not found in graph`);
         }
 
-        const response = await agent.call(`You are now in ${context.mode} mode. ${context.prompt || 'Please proceed with your specialized function.'}`);
+        // Since agents are backend-connected, use the existing chat API endpoint  
+        const apiResponse = await fetch('/api/study-session/chat', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                session_id: agentGraph.sessionContext?.session_id || 'default',
+                message: context.prompt || 'Please proceed with your specialized function.',
+                mode: context.mode,
+                agent_id: agentId
+            })
+        });
+
+        if (!apiResponse.ok) {
+            throw new Error(`Backend API error: ${apiResponse.status}`);
+        }
+
+        const response = await apiResponse.json();
+        
+        // Extract the actual message content from the backend response
+        const content = response.agent_response || response.messages?.[0]?.content || response.content || "Agent activated";
         
         return {
             agentId,
             status: 'activated',
             mode: context.mode,
-            response: response,
+            response: content,
             timestamp: new Date().toISOString()
         };
 
@@ -366,19 +387,40 @@ export const generateContent = async (agentGraph, agentId, mode, context) => {
             throw new Error(`Agent ${agentId} not found`);
         }
 
-        const prompt = createContentPrompt(agentId, mode, context);
-        const response = await agent.call(prompt);
+        // Make API call to backend using existing chat endpoint
+        const apiResponse = await fetch('/api/study-session/chat', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                session_id: agentGraph.sessionContext?.session_id || 'default',
+                message: `Generate ${mode} content for topic: ${context.topic}`,
+                mode: mode,
+                agent_id: agentId,
+                context: context
+            })
+        });
+
+        if (!apiResponse.ok) {
+            throw new Error(`Backend API error: ${apiResponse.status}`);
+        }
+
+        const response = await apiResponse.json();
+        
+        // Extract the actual message content from the backend response
+        const content = response.agent_response || response.messages?.[0]?.content || response.content || "Response received";
         
         return {
             agentId,
             mode,
-            content: response,
+            content: content,
             timestamp: new Date().toISOString(),
             interactive: isInteractiveContent(agentId, mode)
         };
 
     } catch (error) {
-        console.error(`❌ Error generating content from \${agentId}:`, error);
+        console.error(`❌ Error generating content from ${agentId}:`, error);
         return {
             agentId,
             mode,
@@ -394,20 +436,20 @@ export const generateContent = async (agentGraph, agentId, mode, context) => {
 const createContentPrompt = (agentId, mode, context) => {
     const prompts = {
         teacher: {
-            learning: `Use your content_explanation tool to explain the topic "\${context.topic}" for a \${context.expertiseLevel} level student. Break it into digestible chunks.`,
-            practice: `Use your question_generation tool to create a Singapore O-Level \${context.questionType || 'structured'} question about "\${context.topic}" at \${context.difficulty || 'medium'} difficulty.`
+            learning: `Use your content_explanation tool to explain the topic "${context.topic}" for a ${context.expertiseLevel} level student. Break it into digestible chunks.`,
+            practice: `Use your question_generation tool to create a Singapore O-Level ${context.questionType || 'structured'} question about "${context.topic}" at ${context.difficulty || 'medium'} difficulty.`
         },
         tutor: {
-            learning: `Use your interactive_questioning tool to ask Socratic questions about "\${context.topic}" to guide the student's discovery.`,
-            practice: `Use your answer_analysis tool to provide detailed feedback on the student's answer: "\${context.studentAnswer}". Include O-Level answering techniques.`
+            learning: `Use your interactive_questioning tool to ask Socratic questions about "${context.topic}" to guide the student's discovery.`,
+            practice: `Use your answer_analysis tool to provide detailed feedback on the student's answer: "${context.studentAnswer}". Include O-Level answering techniques.`
         },
         perfect_scorer: {
-            learning: `Create visual learning aids for "\${context.topic}". Use diagram_generator for a concept diagram and mnemonic_creator for memory aids.`,
-            practice: `Use your peer_simulation tool to simulate a peer study session where the student explains "\${context.topic}" back to you.`
+            learning: `Create visual learning aids for "${context.topic}". Use diagram_generator for a concept diagram and mnemonic_creator for memory aids.`,
+            practice: `Use your peer_simulation tool to simulate a peer study session where the student explains "${context.topic}" back to you.`
         }
     };
     
-    return prompts[agentId]?.[mode] || `Generate \${mode} content for \${context.topic}`;
+    return prompts[agentId]?.[mode] || `Generate ${mode} content for ${context.topic}`;
 };
 
 /**
@@ -427,7 +469,7 @@ const isInteractiveContent = (agentId, mode) => {
  * Update Student Progress
  */
 export const updateProgress = async (agentGraph, progressType, currentProgress) => {
-    console.log(`📊 Updating progress - \${progressType}`);
+    console.log(`📊 Updating progress - ${progressType}`);
     
     try {
         // Update session context with new progress
@@ -458,12 +500,12 @@ export const updateProgress = async (agentGraph, progressType, currentProgress) 
  * Coordinate Agent Swarm Discussion
  */
 export const coordinateAgentSwarm = async (agentGraph, discussionTopic, maxDuration = 60000) => {
-    console.log(`🐝 Starting agent swarm discussion: \${discussionTopic}`);
+    console.log(`🐝 Starting agent swarm discussion: ${discussionTopic}`);
     
     try {
         const { orchestrator, agents } = agentGraph;
         
-        const swarmPrompt = `Coordinate a 1-minute discussion between Teacher, Tutor, and Perfect Scorer agents about: \${discussionTopic}
+        const swarmPrompt = `Coordinate a 1-minute discussion between Teacher, Tutor, and Perfect Scorer agents about: ${discussionTopic}
         
 Each agent should contribute their unique perspective:
 - Teacher: Curriculum and content delivery focus

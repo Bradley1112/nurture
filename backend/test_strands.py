@@ -13,20 +13,11 @@ try:
     from strands import Agent, tool
     print("✅ Strands SDK imported successfully")
     
-    # Create a simple test agent
-    @Agent
-    class TestAgent:
-        """A simple test agent for educational evaluation"""
-        
-        @tool
-        def evaluate_answer(self, question: str, answer: str) -> str:
-            """Evaluate a student's answer to a question"""
-            return f"For question '{question}', the answer '{answer}' needs evaluation."
+    # Test different Agent patterns
     
-    # Test the agent
-    agent = TestAgent()
-    result = agent.evaluate_answer("What is velocity?", "Speed with direction")
-    print(f"✅ Test agent created and working: {result}")
+    # Pattern 1: Simple function-based agent
+    agent = Agent("Test Agent")
+    print(f"✅ Simple agent created: {agent}")
     
     print("🎉 Strands SDK is ready for use!")
     

@@ -187,17 +187,17 @@ class MeshAgenticEvaluationService:
         
         self.moe_teacher_agent = Agent(
             tools=mesh_tools + [analyze_syllabus_alignment_mesh],
-            model="arn:aws:bedrock:us-east-1:783495883911:inference-profile/us.anthropic.claude-sonnet-4-20250514-v1:0"
+            model="us.anthropic.claude-sonnet-4-20250514-v1:0"
         )
         
         self.perfect_student_agent = Agent(
             tools=mesh_tools + [evaluate_efficiency_mesh],
-            model="arn:aws:bedrock:us-east-1:783495883911:inference-profile/us.anthropic.claude-sonnet-4-20250514-v1:0"
+            model="us.anthropic.claude-sonnet-4-20250514-v1:0"
         )
         
         self.tutor_agent = Agent(
             tools=mesh_tools + [identify_gaps_mesh],
-            model="arn:aws:bedrock:us-east-1:783495883911:inference-profile/us.anthropic.claude-sonnet-4-20250514-v1:0"
+            model="us.anthropic.claude-sonnet-4-20250514-v1:0"
         )
         
         # Agent registry for mesh communication

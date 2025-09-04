@@ -314,7 +314,7 @@ class StudySessionOrchestrator:
 
         # WORKING VERSION - Compatible with current Strands SDK
         self.agent = Agent(
-            model="anthropic.claude-sonnet-4-20250514-v1:0",
+            model="us.anthropic.claude-sonnet-4-20250514-v1:0",
             name="Study Orchestrator"
         )
         # Attach the tools to the agent (both as attributes and array for compatibility)
@@ -450,7 +450,7 @@ Ready to try a practice problem?"""
 
         # WORKING VERSION - Compatible with current Strands SDK
         self.specialized_agents["teacher"] = Agent(
-            model="anthropic.claude-sonnet-4-20250514-v1:0",
+            model="us.anthropic.claude-sonnet-4-20250514-v1:0",
             name="Teacher Agent"
         )
         # Attach the tools to the agent (both as attributes and array for compatibility)
@@ -551,7 +551,7 @@ Ready to try a practice problem?"""
 
         # WORKING VERSION - Compatible with current Strands SDK
         self.specialized_agents["tutor"] = Agent(
-            model="anthropic.claude-sonnet-4-20250514-v1:0",
+            model="us.anthropic.claude-sonnet-4-20250514-v1:0",
             name="Tutor Agent"
         )
         # Attach the tools to the agent (both as attributes and array for compatibility)
@@ -713,7 +713,7 @@ After you explain, I'll give you feedback on your explanation and we can discuss
 
         # WORKING VERSION - Compatible with current Strands SDK
         self.specialized_agents["perfect_scorer"] = Agent(
-            model="anthropic.claude-sonnet-4-20250514-v1:0",
+            model="us.anthropic.claude-sonnet-4-20250514-v1:0",
             name="Perfect Scorer Agent"
         )
         # Attach the tools to the agent (both as attributes and array for compatibility)
@@ -961,18 +961,22 @@ After you explain, I'll give you feedback on your explanation and we can discuss
                 elif agent_id == "tutor":
                     if mode == "learning":
                         prompt = f"Ask a Socratic question about '{context.topic_id}' to help the student who said: '{student_message}'. Guide their understanding through questioning."
-                        response_text = await agent(prompt)
+                        result = await agent.invoke_async(prompt)
+                        response_text = result.message
                     else:  # practice  
                         prompt = f"Provide detailed feedback on this student answer: '{student_message}' for the topic '{context.topic_id}'. Include O-Level answering techniques."
-                        response_text = await agent(prompt)
+                        result = await agent.invoke_async(prompt)
+                        response_text = result.message
                         
                 elif agent_id == "perfect_scorer":
                     if mode == "learning":
                         prompt = f"Create visual learning aids for the topic '{context.topic_id}'. Generate mind maps, diagrams, or mnemonics to help a {context.expertise_level} student remember and understand the concepts."
-                        response_text = await agent(prompt)
+                        result = await agent.invoke_async(prompt)
+                        response_text = result.message
                     else:  # practice
                         prompt = f"Simulate a peer study session for '{context.topic_id}'. Help the student explain the concept back to reinforce learning. Student said: '{student_message}'"
-                        response_text = await agent(prompt)
+                        result = await agent.invoke_async(prompt)
+                        response_text = result.message
                 
             else:
                 # Fallback responses when Strands not available

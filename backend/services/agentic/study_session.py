@@ -84,6 +84,8 @@ class SessionData:
     student_progress: Dict[str, Any]
     start_time: datetime
     last_updated: datetime
+    current_agent: Optional[str] = None
+    current_mode: Optional[str] = None
 
 class StudySessionOrchestrator:
     """
@@ -195,6 +197,8 @@ class StudySessionOrchestrator:
             """Determine which agent to call based on student message"""
             
             msg = message.lower()
+            current_agent = session_context.get("current_agent")
+            current_mode = session_context.get("current_mode", "learning")
             
             # Start command
             if "start" in msg or "begin" in msg:
@@ -205,38 +209,66 @@ class StudySessionOrchestrator:
                     "orchestrator_message": f"Perfect! Let me connect you with the {session_context.get('primary_agent', 'teacher')} to begin."
                 }
             
-            # Question keywords
+            # Check for explicit agent switching keywords
+            # Question keywords - switch to teacher
             if any(word in msg for word in ["question", "practice", "test", "exam"]):
-                return {
-                    "agent": "teacher",
-                    "mode": "practice",
-                    "reason": "student_wants_practice",
-                    "orchestrator_message": "I'll get the Teacher to prepare a practice question for you!"
-                }
+                if current_agent != "teacher" or current_mode != "practice":
+                    return {
+                        "agent": "teacher",
+                        "mode": "practice",
+                        "reason": "student_wants_practice",
+                        "orchestrator_message": "I'll get the Teacher to prepare a practice question for you!"
+                    }
+                else:
+                    # Already with teacher in practice mode, continue
+                    return {
+                        "agent": "teacher",
+                        "mode": "practice",
+                        "reason": "continue_conversation",
+                        "orchestrator_message": ""
+                    }
             
-            # Explanation keywords
+            # Explanation keywords - switch to tutor
             if any(word in msg for word in ["explain", "understand", "confused", "help", "clarify"]):
-                return {
-                    "agent": "tutor",
-                    "mode": "learning",
-                    "reason": "student_needs_clarification",
-                    "orchestrator_message": "Let me bring in the Tutor to help clarify this concept."
-                }
+                if current_agent != "tutor" or current_mode != "learning":
+                    return {
+                        "agent": "tutor",
+                        "mode": "learning",
+                        "reason": "student_needs_clarification",
+                        "orchestrator_message": "Let me bring in the Tutor to help clarify this concept."
+                    }
+                else:
+                    # Already with tutor in learning mode, continue
+                    return {
+                        "agent": "tutor",
+                        "mode": "learning",
+                        "reason": "continue_conversation",
+                        "orchestrator_message": ""
+                    }
             
-            # Visual/memory keywords
+            # Visual/memory keywords - switch to perfect_scorer
             if any(word in msg for word in ["visual", "remember", "memorize", "diagram", "mind map", "mnemonic"]):
-                return {
-                    "agent": "perfect_scorer",
-                    "mode": "learning",
-                    "reason": "student_wants_visual_learning",
-                    "orchestrator_message": "Great idea! The Perfect Scorer will create visual aids to help you remember this."
-                }
+                if current_agent != "perfect_scorer" or current_mode != "learning":
+                    return {
+                        "agent": "perfect_scorer",
+                        "mode": "learning",
+                        "reason": "student_wants_visual_learning",
+                        "orchestrator_message": "Great idea! The Perfect Scorer will create visual aids to help you remember this."
+                    }
+                else:
+                    # Already with perfect_scorer in learning mode, continue
+                    return {
+                        "agent": "perfect_scorer",
+                        "mode": "learning",
+                        "reason": "continue_conversation",
+                        "orchestrator_message": ""
+                    }
             
-            # Default: Continue with current flow
+            # Default: Continue with current agent and mode (AGENT CONTINUITY)
             return {
-                "agent": session_context.get("primary_agent", "teacher"),
-                "mode": session_context.get("current_mode", "learning"),
-                "reason": "natural_flow",
+                "agent": current_agent or session_context.get("primary_agent", "teacher"),
+                "mode": current_mode,
+                "reason": "continue_conversation",
                 "orchestrator_message": ""
             }
 
@@ -772,7 +804,9 @@ After you explain, I'll give you feedback on your explanation and we can discuss
                 "current_streak": 0
             },
             start_time=datetime.now(),
-            last_updated=datetime.now()
+            last_updated=datetime.now(),
+            current_agent=session_plan.primary_agent,
+            current_mode=session_plan.initial_mode
         )
         
         self.active_sessions[session_id] = session_data
@@ -867,15 +901,24 @@ After you explain, I'll give you feedback on your explanation and we can discuss
         if STRANDS_AVAILABLE and self.agent:
             try:
                 # Get routing decision from orchestrator
+                session_context = {
+                    **asdict(session_data.session_plan),
+                    "current_agent": session_data.current_agent,
+                    "current_mode": session_data.current_mode
+                }
                 routing = await self.agent.tools[1](
                     message=message,
-                    session_context=asdict(session_data.session_plan)
+                    session_context=session_context
                 )
                 
                 agent_id = routing["agent"]
                 mode = routing["mode"]
                 reason = routing["reason"]
                 orchestrator_msg = routing.get("orchestrator_message", "")
+                
+                # Update current agent and mode tracking
+                session_data.current_agent = agent_id
+                session_data.current_mode = mode
                 
                 # Add orchestrator message if provided
                 if orchestrator_msg:
@@ -917,8 +960,14 @@ After you explain, I'll give you feedback on your explanation and we can discuss
         else:
             # Fallback routing without orchestrator
             agent_id = "teacher"  # Default fallback
+            mode = "learning"
+            
+            # Update current agent and mode tracking
+            session_data.current_agent = agent_id
+            session_data.current_mode = mode
+            
             agent_response = await self._call_specialized_agent(
-                session_data, agent_id, "learning", message
+                session_data, agent_id, mode, message
             )
             
             return {
@@ -960,7 +1009,7 @@ After you explain, I'll give you feedback on your explanation and we can discuss
                         
                 elif agent_id == "tutor":
                     if mode == "learning":
-                        prompt = f"Ask a Socratic question about '{context.topic_id}' to help the student who said: '{student_message}'. Guide their understanding through questioning."
+                        prompt = f"The student responded: '{student_message}' to your previous question about '{context.topic_id}'. First, acknowledge their response and provide feedback on their thinking. Then, if appropriate, ask a follow-up Socratic question to guide their understanding deeper. Use the Socratic method to help them discover insights themselves."
                         result = await agent.invoke_async(prompt)
                         response_text = result.message
                     else:  # practice  

@@ -976,6 +976,27 @@ After you explain, I'll give you feedback on your explanation and we can discuss
                 "agent_response": agent_response
             }
 
+    def _extract_message_text(self, result) -> str:
+        """Extract plain text from agent response message"""
+        try:
+            # Try multiple extraction patterns
+            if hasattr(result.message, 'content') and hasattr(result.message.content, 'content'):
+                return result.message.content.content[0].text
+            elif hasattr(result.message, 'content') and isinstance(result.message.content, list):
+                return result.message.content[0].get('text', str(result.message))
+            elif hasattr(result.message, 'content') and isinstance(result.message.content, str):
+                return result.message.content
+            elif isinstance(result.message, dict) and 'content' in result.message:
+                content = result.message['content']
+                if isinstance(content, list) and len(content) > 0:
+                    return content[0].get('text', str(result.message))
+                else:
+                    return str(content)
+            else:
+                return str(result.message)
+        except Exception as e:
+            return f"Response received but could not extract text: {str(result.message)[:200]}..."
+
     async def _call_specialized_agent(
         self,
         session_data: SessionData,
@@ -1041,21 +1062,21 @@ Example response format:
 
 DO NOT mention "content generation" or assume they want you to create materials."""
                         result = await agent.invoke_async(prompt)
-                        response_text = result.message
+                        response_text = self._extract_message_text(result)
                     else:  # practice  
                         prompt = f"Provide detailed feedback on this student answer: '{student_message}' for the topic '{context.topic_id}'. Include O-Level answering techniques."
                         result = await agent.invoke_async(prompt)
-                        response_text = result.message
+                        response_text = self._extract_message_text(result)
                         
                 elif agent_id == "perfect_scorer":
                     if mode == "learning":
                         prompt = f"Create visual learning aids for the topic '{context.topic_id}'. Generate mind maps, diagrams, or mnemonics to help a {context.expertise_level} student remember and understand the concepts."
                         result = await agent.invoke_async(prompt)
-                        response_text = result.message
+                        response_text = self._extract_message_text(result)
                     else:  # practice
                         prompt = f"Simulate a peer study session for '{context.topic_id}'. Help the student explain the concept back to reinforce learning. Student said: '{student_message}'"
                         result = await agent.invoke_async(prompt)
-                        response_text = result.message
+                        response_text = self._extract_message_text(result)
                 
             else:
                 # Fallback responses when Strands not available

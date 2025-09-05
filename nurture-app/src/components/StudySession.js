@@ -550,35 +550,30 @@ I'll coordinate between Teacher, Tutor, and Perfect Scorer agents to optimize yo
     setIsOrchestratorThinking(true);
 
     try {
-      // Determine agent routing using orchestrator logic
-      const routing = determineAgentRouting(message);
+      // Use studySessionAPI directly to send message to backend
+      const sessionId = agentGraph?.sessionContext?.session_id || 'default';
+      const result = await studySessionAPI.sendChatMessage(sessionId, message);
 
-      // Show orchestrator response if needed
-      if (routing.showOrchestratorResponse) {
-        addMessage("orchestrator", routing.orchestratorMessage);
-        await new Promise((resolve) => setTimeout(resolve, 1000));
+      if (result.success) {
+        // Extract the actual message content from the response
+        const agentResponse = result.agent_response;
+        const messageContent = agentResponse?.message?.content || 
+                              JSON.stringify(agentResponse);
+        
+        // Add agent response to chat with proper sender
+        const agentId = agentResponse?.agent_id || "orchestrator";
+        addMessage(agentId, messageContent, {
+          agentId: agentId,
+          mode: agentResponse?.mode || "learning",
+          interactive: false,
+          metadata: agentResponse?.metadata || {}
+        });
+
+        updateProgress("interaction");
+      } else {
+        addMessage("orchestrator", `⚠️ Error: ${result.error}`);
       }
 
-      // Route to appropriate agent
-      if (routing.callAgent) {
-        await callAWSStrandsAgent(routing.agentType, routing.context, message);
-
-        // Check if orchestrator should make new decisions
-        if (routing.triggerReassessment) {
-          await reassessSession();
-        }
-
-        // Occasionally trigger swarm decisions for complex topics
-        if (Math.random() > 0.8 && message.length > 50) {
-          setTimeout(() => {
-            makeSwarmDecision(
-              `Optimizing learning approach for: ${message.substring(0, 50)}...`
-            );
-          }, 2000);
-        }
-      }
-
-      updateProgress("interaction");
     } catch (error) {
       console.error("❌ Message processing failed:", error);
       addMessage(

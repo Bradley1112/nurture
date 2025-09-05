@@ -812,18 +812,18 @@ After you explain, I'll give you feedback on your explanation and we can discuss
         self.active_sessions[session_id] = session_data
         
         # Add properly formatted welcome message
-        welcome_msg = f"""🎯 **Study Session Initialized!**
+        welcome_msg = f"""🎯 Study Session Initialized!
 
-**My Analysis:**
-- Topic: {context.topic_id.replace('_', ' ')} ({context.subject_id})
-- Your Level: {context.expertise_level}
-- Strategy: {session_plan.strategy}
-- Focus: {session_plan.learning_ratio}% learning, {session_plan.practice_ratio}% practice
-- Primary Agent: {session_plan.primary_agent.replace('_', ' ').title()}
+My Analysis:
+• Topic: {context.topic_id.replace('_', ' ')} ({context.subject_id})
+• Your Level: {context.expertise_level}
+• Strategy: {session_plan.strategy}
+• Focus: {session_plan.learning_ratio}% learning, {session_plan.practice_ratio}% practice
+• Primary Agent: {session_plan.primary_agent.replace('_', ' ').title()}
 
 I'll coordinate between Teacher, Tutor, and Perfect Scorer agents to optimize your learning experience.
 
-**Ready to begin?** Type 'start' or ask any questions about the topic!"""
+Ready to begin? Type 'start' or ask any questions about the topic!"""
         
         session_data.messages.append({
             "id": f"msg_{int(time.time())}_welcome",

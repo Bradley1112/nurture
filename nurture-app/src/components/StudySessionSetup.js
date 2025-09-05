@@ -127,20 +127,20 @@ const StudySessionSetup = () => {
                 {/* Focus Level */}
                 <div className="space-y-2">
                     <label htmlFor="focus" className="text-lg">Focus Level: {focusLevel}</label>
-                    <input id="focus" type="range" min="1" max="5" value={focusLevel} onChange={(e) => setFocusLevel(Number(e.target.value))} className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer" />
-                    <div className="flex justify-between text-xs">
-                        <span>Not Focused</span>
-                        <span>Very Focused</span>
+                    <div className="flex items-center space-x-4">
+                        <span className="text-xs">Not Focused</span>
+                        <input id="focus" type="range" min="1" max="5" value={focusLevel} onChange={(e) => setFocusLevel(Number(e.target.value))} className="flex-1 h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer" style={{ maxWidth: '30%' }} />
+                        <span className="text-xs">Very Focused</span>
                     </div>
                 </div>
 
                 {/* Stress Level */}
                 <div className="space-y-2">
                     <label htmlFor="stress" className="text-lg">Stress Level: {stressLevel}</label>
-                    <input id="stress" type="range" min="1" max="5" value={stressLevel} onChange={(e) => setStressLevel(Number(e.target.value))} className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer" />
-                    <div className="flex justify-between text-xs">
-                        <span>Calm</span>
-                        <span>Very Stressed</span>
+                    <div className="flex items-center space-x-4">
+                        <span className="text-xs">Calm</span>
+                        <input id="stress" type="range" min="1" max="5" value={stressLevel} onChange={(e) => setStressLevel(Number(e.target.value))} className="flex-1 h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer" style={{ maxWidth: '30%' }} />
+                        <span className="text-xs">Very Stressed</span>
                     </div>
                 </div>
 

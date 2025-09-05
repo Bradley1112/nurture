@@ -1001,12 +1001,12 @@ Ready to begin? Type 'start' or ask any questions about the topic!"""
                 # Use appropriate agent tool based on mode
                 if agent_id == "teacher":
                     if mode == "learning":
-                        response_text = await agent.tools[0](  # explain_concept
+                        response_text = agent.tools[0](  # explain_concept (not async)
                             topic=context.topic_id,
                             expertise_level=context.expertise_level
                         )
                     else:  # practice
-                        response_data = await agent.tools[1](  # generate_practice_question
+                        response_data = agent.tools[1](  # generate_practice_question (not async)
                             topic=context.topic_id,
                             expertise_level=context.expertise_level
                         )

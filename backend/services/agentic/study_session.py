@@ -811,42 +811,26 @@ After you explain, I'll give you feedback on your explanation and we can discuss
         
         self.active_sessions[session_id] = session_data
         
-        # Add welcome messages
-        welcome_msg = f"Welcome to your {context.topic_id.replace('_', ' ')} study session! 🌱"
+        # Add properly formatted welcome message
+        welcome_msg = f"""🎯 **Study Session Initialized!**
+
+**My Analysis:**
+- Topic: {context.topic_id.replace('_', ' ')} ({context.subject_id})
+- Your Level: {context.expertise_level}
+- Strategy: {session_plan.strategy}
+- Focus: {session_plan.learning_ratio}% learning, {session_plan.practice_ratio}% practice
+- Primary Agent: {session_plan.primary_agent.replace('_', ' ').title()}
+
+I'll coordinate between Teacher, Tutor, and Perfect Scorer agents to optimize your learning experience.
+
+**Ready to begin?** Type 'start' or ask any questions about the topic!"""
         
-        profile_msg = (f"I'm analyzing your profile:\n"
-                      f"📊 Expertise: {context.expertise_level}\n"
-                      f"🎯 Focus Level: {context.focus_level}/10\n"
-                      f"😌 Stress Level: {context.stress_level}/10\n"
-                      f"⏰ Session Duration: {context.session_duration} minutes")
-        
-        plan_msg = (f"Based on your profile, I've created an optimal study plan:\n\n"
-                   f"🎯 **Session Strategy**: {session_plan.strategy}\n"
-                   f"📚 **Learning/Practice Mix**: {session_plan.learning_ratio}% learning, {session_plan.practice_ratio}% practice\n"
-                   f"🤖 **Primary Agent**: {session_plan.primary_agent}\n"
-                   f"⚡ **Intensity**: {session_plan.intensity}\n\n"
-                   f"Let's begin! Type 'start' or ask me any questions about the topic.")
-        
-        session_data.messages.extend([
-            {
-                "id": f"msg_{int(time.time())}_1",
-                "sender": "orchestrator",
-                "content": welcome_msg,
-                "timestamp": datetime.now().isoformat()
-            },
-            {
-                "id": f"msg_{int(time.time())}_2", 
-                "sender": "orchestrator",
-                "content": profile_msg,
-                "timestamp": datetime.now().isoformat()
-            },
-            {
-                "id": f"msg_{int(time.time())}_3",
-                "sender": "orchestrator", 
-                "content": plan_msg,
-                "timestamp": datetime.now().isoformat()
-            }
-        ])
+        session_data.messages.append({
+            "id": f"msg_{int(time.time())}_welcome",
+            "sender": "orchestrator",
+            "content": welcome_msg,
+            "timestamp": datetime.now().isoformat()
+        })
         
         return session_data
 

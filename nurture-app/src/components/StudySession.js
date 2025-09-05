@@ -194,33 +194,27 @@ const StudySession = () => {
       const graph = await initializeAgentGraph(sessionContextWithId);
       setAgentGraph(graph);
 
-      // Make initial orchestrator decisions
-      const orchestratorDecision = makeOrchestratorDecisions();
-      setSessionData((prev) => ({
-        ...prev,
-        sessionPlan: orchestratorDecision,
-        currentMode: orchestratorDecision.initialMode,
-      }));
-      setSessionMode(orchestratorDecision.initialMode);
+      // Load initial messages from backend (already contains properly formatted welcome message)
+      if (backendSessionData.messages && backendSessionData.messages.length > 0) {
+        setMessages(backendSessionData.messages.map(msg => ({
+          id: msg.id,
+          sender: msg.sender,
+          content: msg.content,
+          timestamp: new Date(msg.timestamp),
+          metadata: msg.metadata || {}
+        })));
+      }
 
-      // Log orchestrator decision
-      logOrchestratorDecision("session_initialization", orchestratorDecision);
+      // Store session plan from backend
+      if (backendSessionData.session_plan) {
+        setSessionData((prev) => ({
+          ...prev,
+          sessionPlan: backendSessionData.session_plan,
+          currentMode: backendSessionData.session_plan.initial_mode,
+        }));
+        setSessionMode(backendSessionData.session_plan.initial_mode);
+      }
 
-      // Send welcome message from orchestrator
-      const welcomeMessage = `🎯 **Study Session Initialized!**
-
-**My Analysis:**
-- Topic: ${topicId.replace(/_/g, ' ')} (${subjectId})
-- Your Level: ${expertiseLevel}
-- Strategy: ${orchestratorDecision.strategy}
-- Focus: ${orchestratorDecision.learningRatio}% learning, ${orchestratorDecision.practiceRatio}% practice
-- Primary Agent: ${agentProfiles[orchestratorDecision.primaryAgent]?.name}
-
-I'll coordinate between Teacher, Tutor, and Perfect Scorer agents to optimize your learning experience.
-
-**Ready to begin?** Type "start" or ask any questions about the topic!`;
-
-      addMessage("orchestrator", welcomeMessage);
       console.log("✅ AWS Strands Agent Graph initialized successfully");
     } catch (error) {
       console.error("❌ AWS Strands initialization failed:", error);

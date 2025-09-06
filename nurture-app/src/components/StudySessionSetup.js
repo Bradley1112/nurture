@@ -88,7 +88,10 @@ const StudySessionSetup = () => {
                     breakTime: breakTime,
                     sessionId: sessionId,
                     topicId: topicId,
-                    subjectId: subjectId
+                    subjectId: subjectId,
+                    focusLevel: focusLevel,
+                    stressLevel: stressLevel,
+                    expertiseLevel: expertise
                 }
             });
 

@@ -286,12 +286,12 @@ const StudySession = () => {
     }
 
     // Stress/Focus adjustments
-    if (stressLevel > 7) {
+    if (stressLevel > 4) {  // Match backend logic: stress > 4 triggers perfect_scorer
       primaryAgent = "perfectScorer";
       intensity = "gentle";
       learningRatio += 20;
       practiceRatio -= 20;
-    } else if (focusLevel < 4) {
+    } else if (focusLevel < 2) {  // Match backend logic: focus < 2 triggers perfect_scorer
       primaryAgent = "perfectScorer";
       intensity = "engaging";
     }
@@ -316,8 +316,8 @@ const StudySession = () => {
       timeToExam,
       adaptiveFactors: {
         expertiseBased: true,
-        stressConsidered: stressLevel > 7,
-        focusOptimized: focusLevel < 4,
+        stressConsidered: stressLevel > 4,
+        focusOptimized: focusLevel < 2,
         examPressure: timeToExam < 30,
       },
     };
@@ -1014,7 +1014,7 @@ const StudySession = () => {
         <div className="flex items-center">
           <h1 className="text-xl font-bold">📚 {topicId.replace(/_/g, " ")}</h1>
           <span className="ml-4 text-sm text-gray-300">
-            {expertiseLevel} • Focus: {focusLevel}/10 • Stress: {stressLevel}/10
+            {expertiseLevel} • Focus: {focusLevel}/5 • Stress: {stressLevel}/5
           </span>
           <span className="ml-4 text-sm" style={{ color: "#49B85B" }}>
             {sessionData.simulationMode

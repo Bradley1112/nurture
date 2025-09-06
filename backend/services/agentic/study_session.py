@@ -157,12 +157,12 @@ class StudySessionOrchestrator:
                 initial_mode = "practice"
 
             # Stress/Focus adjustments
-            if stress_level > 7:
+            if stress_level > 4:
                 primary_agent = "perfect_scorer"  # Wellbeing focus
                 intensity = "gentle"
                 learning_ratio += 20  # More learning, less pressure
                 practice_ratio -= 20
-            elif focus_level < 4:
+            elif focus_level < 2:
                 primary_agent = "perfect_scorer"  # Visual aids help
                 intensity = "engaging"
 
@@ -228,9 +228,27 @@ class StudySessionOrchestrator:
                         "orchestrator_message": ""
                     }
             
-            # Explanation keywords - switch to tutor
+            # Explanation keywords - switch to tutor (but respect stress-level agent selection)
             if any(word in msg for word in ["explain", "understand", "confused", "help", "clarify"]):
-                if current_agent != "tutor" or current_mode != "learning":
+                # If student has high stress (primary agent is perfect_scorer), keep them with perfect_scorer
+                # for wellbeing-focused explanations instead of switching to tutor
+                if session_context.get("primary_agent") == "perfect_scorer":
+                    if current_agent != "perfect_scorer" or current_mode != "learning":
+                        return {
+                            "agent": "perfect_scorer",
+                            "mode": "learning", 
+                            "reason": "high_stress_student_needs_gentle_clarification",
+                            "orchestrator_message": "Let me keep you with the Perfect Scorer for gentle, visual explanations that won't add to your stress."
+                        }
+                    else:
+                        return {
+                            "agent": "perfect_scorer",
+                            "mode": "learning",
+                            "reason": "continue_conversation",
+                            "orchestrator_message": ""
+                        }
+                # For non-stressed students, use tutor as normal
+                elif current_agent != "tutor" or current_mode != "learning":
                     return {
                         "agent": "tutor",
                         "mode": "learning",

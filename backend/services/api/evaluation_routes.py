@@ -27,13 +27,15 @@ def evaluate_quiz():
         
         try:
             from services.agentic import MeshAgenticEvaluationService, TIME_LIMITED_AVAILABLE
+            mesh_available = MeshAgenticEvaluationService is not None
         except ImportError as import_error:
             logger.warning(f"Agentic services not available: {import_error}")
             TIME_LIMITED_AVAILABLE = False
             MeshAgenticEvaluationService = None
+            mesh_available = False
         
         # Use the sophisticated collaborative swarm evaluation
-        if TIME_LIMITED_AVAILABLE and MeshAgenticEvaluationService:
+        if mesh_available and MeshAgenticEvaluationService:
             try:
                 evaluation_service = MeshAgenticEvaluationService()
                 # Run the async evaluation using asyncio.run()

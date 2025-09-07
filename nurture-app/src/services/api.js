@@ -42,14 +42,14 @@ class NurtureAPI {
    * Health check - verify backend is running
    */
   async healthCheck() {
-    return this.request('/');
+    return this.request('/api/health/');
   }
 
   /**
    * Get available subjects and topics for quiz selection
    */
   async getSubjects() {
-    return this.request('/api/subjects');
+    return this.request('/api/health/subjects');
   }
 
   /**

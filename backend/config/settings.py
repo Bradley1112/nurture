@@ -23,7 +23,7 @@ class Config:
     
     # Server Configuration
     HOST = os.getenv('BACKEND_HOST', 'localhost')
-    PORT = int(os.getenv('BACKEND_PORT', 5000))
+    PORT = int(os.getenv('BACKEND_PORT', 8000))
     
     # AWS Configuration
     AWS_REGION = os.getenv('AWS_REGION', 'us-east-1')

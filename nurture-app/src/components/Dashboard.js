@@ -364,7 +364,7 @@ function Dashboard({ user }) {
                     }}
                   >
                     {/* Subject Header */}
-                    <div className="mb-6">
+                    <div className="mb-6 px-2">
                       <div className="flex items-center justify-between mb-3">
                         <div className="flex items-center space-x-3">
                           <div
@@ -377,7 +377,7 @@ function Dashboard({ user }) {
                           >
                             {["⚡", "📐", "📚"][index]}
                           </div>
-                          <div>
+                          <div className="pr-4">
                             <h3 className="text-xl font-bold text-white leading-tight">
                               {subject.name.split("(")[0].trim()}
                             </h3>
@@ -386,7 +386,7 @@ function Dashboard({ user }) {
                             </p>
                           </div>
                         </div>
-                        <div className="text-right">
+                        <div className="text-right pr-2">
                           <div className="text-sm text-gray-400">Topics</div>
                           <div className="text-2xl font-bold text-white">
                             {subject.topics.length}

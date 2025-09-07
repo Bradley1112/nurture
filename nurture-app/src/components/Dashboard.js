@@ -241,30 +241,30 @@ function Dashboard({ user }) {
       </div>
 
       {/* Main Dashboard Content */}
-      <div className="px-8 pb-8">
-        <div className="max-w-7xl mx-auto">
-          <div className="flex items-center justify-between mb-8">
-            <h2 className="text-3xl font-bold text-white">Your Learning Journey</h2>
-            <div className="flex items-center space-x-4">
-              <div className="flex items-center space-x-2 text-sm text-gray-400">
-                <div className="w-3 h-3 rounded-full bg-gray-500"></div>
-                <span>Not Evaluated</span>
+      <div className="px-4 sm:px-6 lg:px-8 pb-8">
+        <div className="max-w-full mx-auto">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between mb-8 space-y-4 lg:space-y-0">
+            <h2 className="text-2xl lg:text-3xl font-bold text-white">Your Learning Journey</h2>
+            <div className="flex flex-wrap items-center gap-3 lg:gap-4">
+              <div className="flex items-center space-x-2 text-xs lg:text-sm text-gray-400">
+                <div className="w-3 h-3 rounded-full bg-gray-500 flex-shrink-0"></div>
+                <span className="whitespace-nowrap">Not Evaluated</span>
               </div>
-              <div className="flex items-center space-x-2 text-sm text-red-400">
-                <div className="w-3 h-3 rounded-full bg-red-500"></div>
-                <span>Beginner</span>
+              <div className="flex items-center space-x-2 text-xs lg:text-sm text-red-400">
+                <div className="w-3 h-3 rounded-full bg-red-500 flex-shrink-0"></div>
+                <span className="whitespace-nowrap">Beginner</span>
               </div>
-              <div className="flex items-center space-x-2 text-sm text-yellow-400">
-                <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
-                <span>Apprentice</span>
+              <div className="flex items-center space-x-2 text-xs lg:text-sm text-yellow-400">
+                <div className="w-3 h-3 rounded-full bg-yellow-500 flex-shrink-0"></div>
+                <span className="whitespace-nowrap">Apprentice</span>
               </div>
-              <div className="flex items-center space-x-2 text-sm text-green-400">
-                <div className="w-3 h-3 rounded-full bg-green-500"></div>
-                <span>Pro</span>
+              <div className="flex items-center space-x-2 text-xs lg:text-sm text-green-400">
+                <div className="w-3 h-3 rounded-full bg-green-500 flex-shrink-0"></div>
+                <span className="whitespace-nowrap">Pro</span>
               </div>
-              <div className="flex items-center space-x-2 text-sm text-blue-400">
-                <div className="w-3 h-3 rounded-full bg-blue-500"></div>
-                <span>Grand Master</span>
+              <div className="flex items-center space-x-2 text-xs lg:text-sm text-blue-400">
+                <div className="w-3 h-3 rounded-full bg-blue-500 flex-shrink-0"></div>
+                <span className="whitespace-nowrap">Grand Master</span>
               </div>
             </div>
           </div>
@@ -278,19 +278,27 @@ function Dashboard({ user }) {
             </div>
           ) : (
             <>
-              {/* 3-Column Grid Layout */}
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
+              {/* Fixed 3-Column Layout for English, Math, Physics */}
+              <div 
+                className="grid gap-6 mb-8 w-full"
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(3, 1fr)',
+                  gap: '24px'
+                }}
+              >
                 {allSubjects.map((subject, index) => (
                   <div 
                     key={subject.id} 
-                    className="group relative"
+                    className="group relative w-full h-full flex flex-col"
                     style={{
                       background: 'rgba(56, 102, 65, 0.2)',
                       backdropFilter: 'blur(20px)',
                       border: '1px solid rgba(73, 184, 91, 0.3)',
                       borderRadius: '24px',
-                      padding: '32px',
-                      transition: 'all 0.3s ease'
+                      padding: '24px lg:32px',
+                      transition: 'all 0.3s ease',
+                      minHeight: '400px'
                     }}
                     onMouseEnter={(e) => {
                       e.currentTarget.style.transform = 'translateY(-8px)';
@@ -333,7 +341,7 @@ function Dashboard({ user }) {
                     </div>
 
                     {/* Topics List */}
-                    <div className="space-y-4">
+                    <div className="space-y-4 flex-1">
                       {subject.topics.map(topic => {
                         const topicData = getTopicData(subject.id, topic.id);
                         const colors = getExpertiseColors(topicData.expertiseLevel);

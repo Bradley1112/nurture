@@ -93,5 +93,5 @@ def evaluate_quiz():
     })
 
 if __name__ == '__main__':
-    print("✅ Starting simple Nurture Backend API on localhost:5000")
+    print("✅ Starting simple Nurture Backend API on localhost:8000")
     app.run(debug=True, host='localhost', port=5001)

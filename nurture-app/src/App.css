@@ -248,16 +248,6 @@ form {
   position: relative;
 }
 
-.auth-card::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 4px;
-  background: var(--growth-gradient);
-  border-radius: var(--radius-2xl) var(--radius-2xl) 0 0;
-}
 
 /* Dashboard & Quiz Containers */
 .dashboard-container, .quiz-container {

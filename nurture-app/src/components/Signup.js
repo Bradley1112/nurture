@@ -15,48 +15,20 @@ function Signup() {
   const navigate = useNavigate();
 
   const validateDate = (dateString) => {
-    if (!dateString || typeof dateString !== 'string') return false;
+    if (!dateString) return false;
     
-    const regex = /^\d{2}\/\d{2}\/\d{4}$/;
-    if (!regex.test(dateString)) {
-      return false;
-    }
+    // dateString is now in YYYY-MM-DD format from date input
+    const inputDate = new Date(dateString);
     
-    const [day, month, year] = dateString.split('/');
-    const dayNum = parseInt(day, 10);
-    const monthNum = parseInt(month, 10);
-    const yearNum = parseInt(year, 10);
-    
-    // Check if month is valid (1-12)
-    if (monthNum < 1 || monthNum > 12) {
-      return false;
-    }
-    
-    // Check if day is valid (1-31)
-    if (dayNum < 1 || dayNum > 31) {
-      return false;
-    }
-    
-    // Check if year is reasonable (current year to 10 years in future)
-    const currentYear = new Date().getFullYear();
-    if (yearNum < currentYear || yearNum > currentYear + 10) {
-      return false;
-    }
-    
-    // Create date and validate it's a real date (handles leap years, etc.)
-    const date = new Date(yearNum, monthNum - 1, dayNum);
-    const isValidDate = date.getDate() === dayNum && 
-                       date.getMonth() === monthNum - 1 && 
-                       date.getFullYear() === yearNum;
-    
-    if (!isValidDate) {
+    // Check if it's a valid date
+    if (isNaN(inputDate.getTime())) {
       return false;
     }
     
     // Check if it's today or in the future
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const inputDate = new Date(yearNum, monthNum - 1, dayNum);
+    inputDate.setHours(0, 0, 0, 0);
     
     return inputDate >= today;
   };
@@ -90,25 +62,7 @@ function Signup() {
     
     // Validate date format
     if (!validateDate(examDate)) {
-      const regex = /^\d{2}\/\d{2}\/\d{4}$/;
-      if (!regex.test(examDate)) {
-        setError('Please use the format dd/mm/yyyy (e.g., 25/12/2025)');
-      } else {
-        const [day, month, year] = examDate.split('/');
-        const inputDate = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        
-        if (inputDate < today) {
-          setError('Exam date must be today or in the future');
-        } else if (parseInt(month) < 1 || parseInt(month) > 12) {
-          setError('Month must be between 01 and 12');
-        } else if (parseInt(day) < 1 || parseInt(day) > 31) {
-          setError('Day must be between 01 and 31');
-        } else {
-          setError('Please enter a valid date');
-        }
-      }
+      setError('Exam date must be today or in the future');
       return;
     }
     
@@ -216,35 +170,24 @@ function Signup() {
                 <option value="Sec 4">Secondary 4</option>
               </select>
               <input
-                type="text"
-                placeholder="📅 Next exam date (e.g., 15/03/2025)"
+                type="date"
+                placeholder="📅 Select your next exam date"
                 value={examDate}
                 onChange={(e) => {
                   const value = e.target.value;
                   setExamDate(value);
-                  // Clear error when user starts typing a potentially valid format
-                  if (error && error.includes('format') && value.length >= 8) {
+                  // Clear error when user selects a valid date
+                  if (error && validateDate(value)) {
                     setError(null);
                   }
                 }}
-                pattern="\d{2}/\d{2}/\d{4}"
-                title="Please enter date in dd/mm/yyyy format (e.g., 15/03/2025)"
+                min={new Date().toISOString().split('T')[0]} // Set minimum date to today
                 required
                 style={{
-                  borderColor: examDate && !validateDate(examDate) && examDate.length >= 8 ? 
+                  borderColor: examDate && !validateDate(examDate) ? 
                     'var(--error-red)' : undefined
                 }}
               />
-              {examDate && examDate.length >= 8 && !validateDate(examDate) && (
-                <p style={{ 
-                  fontSize: 'var(--text-sm)', 
-                  color: 'var(--error-red)', 
-                  margin: '4px 0 0 0',
-                  textAlign: 'left'
-                }}>
-                  ⚠️ Please use format: dd/mm/yyyy (e.g., 15/03/2025)
-                </p>
-              )}
               <select 
                 value={targetYear} 
                 onChange={(e) => setTargetYear(e.target.value)}

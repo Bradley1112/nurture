@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getFirestore, doc, getDoc } from 'firebase/firestore';
+import { getFirestore } from 'firebase/firestore';
 
 function Dashboard({ user }) {
   const navigate = useNavigate();
@@ -42,6 +42,13 @@ function Dashboard({ user }) {
     }
   ];
 
+  // Helper function to sanitize names for Firestore paths (same logic as EvaluationQuiz)
+  const sanitizeForFirestore = (name) => {
+    return name.toLowerCase()
+      .replace(/\s+/g, '_')
+      .replace(/[^a-z0-9_]/g, '');
+  };
+
   useEffect(() => {
     const fetchEvaluatedTopics = async () => {
       console.log('Dashboard: Fetching evaluated topics for user:', user?.uid);
@@ -54,34 +61,97 @@ function Dashboard({ user }) {
       const evaluatedTopicsData = {};
       
       try {
+        // First, let's discover what subjects actually exist in the database
+        const { collection, getDocs } = await import('firebase/firestore');
+        
         // Check each predefined subject for evaluated topics
         for (const subject of allSubjects) {
           const subjectKey = subject.id;
           evaluatedTopicsData[subjectKey] = {};
           
-          for (const topic of subject.topics) {
-            const topicKey = topic.id;
-            
-            // Try to get the topic data from Firestore
-            const topicDoc = await getDoc(doc(db, 'users', user.uid, 'subjects', subjectKey, 'topics', topicKey));
-            
-            if (topicDoc.exists()) {
-              const topicData = topicDoc.data();
-              evaluatedTopicsData[subjectKey][topicKey] = {
-                expertiseLevel: topicData.expertiseLevel || 'Not Evaluated',
-                evaluationScore: topicData.evaluationScore || 0,
-                lastStudied: topicData.lastStudied,
-                isEvaluated: true
-              };
-              console.log(`Dashboard: Found evaluation data for ${subjectKey}/${topicKey}:`, evaluatedTopicsData[subjectKey][topicKey]);
-            } else {
-              evaluatedTopicsData[subjectKey][topicKey] = {
+          // Try multiple possible subject name formats
+          const possibleSubjectNames = [
+            subject.id, // original id like 'english_language'
+            sanitizeForFirestore(subject.name), // sanitized full name
+            subject.name.toLowerCase().split('(')[0].trim().replace(/\s+/g, '_') // just the subject part
+          ];
+          
+          let foundSubjectData = false;
+          
+          for (const subjectName of possibleSubjectNames) {
+            try {
+              console.log(`Dashboard: Trying subject path: users/${user.uid}/subjects/${subjectName}`);
+              
+              // Try to get all topics for this subject
+              const topicsCollection = collection(db, 'users', user.uid, 'subjects', subjectName, 'topics');
+              const topicsSnapshot = await getDocs(topicsCollection);
+              
+              if (!topicsSnapshot.empty) {
+                console.log(`Dashboard: ✅ Found subject data at ${subjectName}`);
+                foundSubjectData = true;
+                
+                // Map found topics back to our predefined topics
+                topicsSnapshot.forEach((topicDoc) => {
+                  const topicData = topicDoc.data();
+                  const firebaseTopicId = topicDoc.id;
+                  
+                  console.log(`Dashboard: Found topic in Firebase: ${firebaseTopicId}`, topicData);
+                  
+                  // Find matching topic in our predefined topics
+                  // This is a flexible matching approach
+                  const matchingTopic = subject.topics.find(topic => {
+                    const possibleMatches = [
+                      topic.id,
+                      sanitizeForFirestore(topic.name),
+                      topic.name.toLowerCase().replace(/[^a-z0-9]/g, '_')
+                    ];
+                    return possibleMatches.includes(firebaseTopicId) || 
+                           firebaseTopicId.includes(topic.id) || 
+                           topic.id.includes(firebaseTopicId);
+                  });
+                  
+                  if (matchingTopic) {
+                    evaluatedTopicsData[subjectKey][matchingTopic.id] = {
+                      expertiseLevel: topicData.expertiseLevel || 'Not Evaluated',
+                      evaluationScore: topicData.evaluationScore || topicData.score || 0,
+                      lastStudied: topicData.lastStudied || topicData.lastEvaluated,
+                      isEvaluated: true
+                    };
+                    console.log(`Dashboard: ✅ Mapped ${firebaseTopicId} to ${matchingTopic.id}:`, evaluatedTopicsData[subjectKey][matchingTopic.id]);
+                  } else {
+                    // If we can't match, create a best-guess mapping
+                    console.log(`Dashboard: ⚠️ Could not match topic ${firebaseTopicId} to predefined topics`);
+                    // Use the first topic as fallback if there's only one
+                    if (subject.topics.length === 1) {
+                      const fallbackTopic = subject.topics[0];
+                      evaluatedTopicsData[subjectKey][fallbackTopic.id] = {
+                        expertiseLevel: topicData.expertiseLevel || 'Not Evaluated',
+                        evaluationScore: topicData.evaluationScore || topicData.score || 0,
+                        lastStudied: topicData.lastStudied || topicData.lastEvaluated,
+                        isEvaluated: true
+                      };
+                      console.log(`Dashboard: ✅ Fallback mapped ${firebaseTopicId} to ${fallbackTopic.id}`);
+                    }
+                  }
+                });
+                break; // Found data for this subject, no need to try other names
+              }
+            } catch (error) {
+              console.log(`Dashboard: No data found for subject ${subjectName}:`, error.message);
+            }
+          }
+          
+          // If no data found for any subject name variant, mark all topics as not evaluated
+          if (!foundSubjectData) {
+            for (const topic of subject.topics) {
+              evaluatedTopicsData[subjectKey][topic.id] = {
                 expertiseLevel: 'Not Evaluated',
                 evaluationScore: 0,
                 lastStudied: null,
                 isEvaluated: false
               };
             }
+            console.log(`Dashboard: ❌ No data found for any variant of subject ${subject.name}`);
           }
         }
         

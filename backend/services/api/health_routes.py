@@ -33,7 +33,7 @@ def health_check():
             'timestamp': datetime.now().isoformat()
         }), 500
 
-@health_blueprint.route('/api/subjects', methods=['GET'])
+@health_blueprint.route('/subjects', methods=['GET'])
 def get_subjects():
     """Get available subjects and topics for quiz selection"""
     try:

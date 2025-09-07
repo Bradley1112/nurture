@@ -510,8 +510,8 @@ class MeshAgenticEvaluationService:
         
         return discussion_log
     
-    def determine_expertise_level(self, discussion: List[Dict[str, Any]], metrics: Dict[str, Any]) -> Dict[str, Any]:
-        """Determine final expertise level based on mesh discussion and metrics"""
+    def determine_expertise_level(self, discussion: List[Dict[str, Any]], metrics: Dict[str, Any], topics: List[str] = None) -> Dict[str, Any]:
+        """Determine final expertise level based on mesh discussion and metrics with rich recommendations"""
         
         difficulty_breakdown = metrics['difficulty_breakdown']
         
@@ -539,13 +539,28 @@ class MeshAgenticEvaluationService:
         if len(justification) > 100:
             justification = justification[:97] + '...'
         
-        return {
+        # Generate rich recommendations if topics are provided
+        if topics:
+            rich_recommendations = self.generate_rich_agent_recommendations(discussion, metrics, topics)
+            # Legacy simple recommendation for backward compatibility
+            simple_recommendation = self.generate_recommendation(expertise_level, metrics)
+        else:
+            rich_recommendations = None
+            simple_recommendation = self.generate_recommendation(expertise_level, metrics)
+        
+        result = {
             'level': expertise_level,
             'level_info': self.expertise_levels[expertise_level],
             'justification': justification,
             'confidence': self.calculate_confidence(metrics),
-            'recommendation': self.generate_recommendation(expertise_level, metrics)
+            'recommendation': simple_recommendation
         }
+        
+        # Add rich recommendations if available
+        if rich_recommendations:
+            result['rich_recommendations'] = rich_recommendations
+        
+        return result
     
     def calculate_confidence(self, metrics: Dict[str, Any]) -> int:
         """Calculate confidence score for the assessment"""
@@ -563,7 +578,7 @@ class MeshAgenticEvaluationService:
         return round(confidence * 100)
     
     def generate_recommendation(self, level: str, metrics: Dict[str, Any]) -> str:
-        """Generate study recommendation based on expertise level"""
+        """Generate study recommendation based on expertise level (legacy method)"""
         recommendations = {
             'beginner': "Focus on mastering fundamental concepts through guided practice and interactive lessons.",
             'apprentice': "Practice application-based problems and multi-step reasoning exercises.",
@@ -572,6 +587,282 @@ class MeshAgenticEvaluationService:
         }
         
         return recommendations.get(level, recommendations['beginner'])
+    
+    def generate_rich_agent_recommendations(self, discussion: List[Dict[str, Any]], metrics: Dict[str, Any], topics: List[str]) -> Dict[str, Any]:
+        """Generate rich recommendations based on agent discussion and performance data"""
+        
+        # Extract insights from each agent's discussion
+        agent_insights = {
+            'moe_teacher': [],
+            'perfect_student': [],
+            'tutor': []
+        }
+        
+        # Parse agent messages for key insights
+        for msg in discussion:
+            agent_name = msg.get('agent', '').lower()
+            message = msg.get('message', '')
+            
+            if 'moe teacher' in agent_name:
+                agent_insights['moe_teacher'].append(message)
+            elif 'perfect' in agent_name and 'student' in agent_name:
+                agent_insights['perfect_student'].append(message)  
+            elif 'tutor' in agent_name:
+                agent_insights['tutor'].append(message)
+        
+        # Analyze topic-specific performance
+        topic_recommendations = {}
+        topic_performance = metrics.get('topic_performance', {})
+        error_patterns = metrics.get('error_patterns', [])
+        
+        for topic in topics:
+            topic_data = topic_performance.get(topic, {'total': 0, 'correct': 0})
+            accuracy = (topic_data['correct'] / topic_data['total']) if topic_data['total'] > 0 else 0
+            
+            # Get topic-specific errors
+            topic_errors = [err for err in error_patterns if err.get('topic') == topic]
+            
+            topic_rec = {
+                'topic': topic,
+                'accuracy': round(accuracy * 100),
+                'total_questions': topic_data['total'],
+                'correct_answers': topic_data['correct'],
+                'key_errors': topic_errors[:3],  # Top 3 errors
+                'next_steps': self._generate_topic_next_steps(topic, accuracy, topic_errors),
+                'study_focus': self._determine_study_focus(topic, accuracy, topic_errors),
+                'time_estimate': self._estimate_study_time(accuracy, topic_data['total'])
+            }
+            
+            topic_recommendations[topic] = topic_rec
+        
+        # Create comprehensive recommendation structure
+        rich_recommendations = {
+            'overall_level': metrics.get('expertise_level', 'beginner'),
+            'confidence': metrics.get('confidence', 75),
+            'summary': self._create_recommendation_summary(metrics, topics),
+            'topic_recommendations': topic_recommendations,
+            'agent_perspectives': {
+                'moe_teacher': self._extract_teacher_insights(agent_insights['moe_teacher']),
+                'perfect_student': self._extract_student_insights(agent_insights['perfect_student']),
+                'tutor': self._extract_tutor_insights(agent_insights['tutor'])
+            },
+            'immediate_actions': self._generate_immediate_actions(metrics, topics),
+            'weekly_plan': self._generate_weekly_study_plan(topic_recommendations),
+            'long_term_goals': self._generate_long_term_goals(metrics.get('expertise_level', 'beginner'))
+        }
+        
+        return rich_recommendations
+    
+    def _generate_topic_next_steps(self, topic: str, accuracy: float, errors: List[Dict]) -> List[str]:
+        """Generate specific next steps for a topic"""
+        next_steps = []
+        
+        if accuracy < 0.5:
+            next_steps.extend([
+                f"Review fundamental concepts in {topic}",
+                f"Practice basic {topic} problems with step-by-step solutions",
+                "Work through guided examples before attempting practice problems"
+            ])
+        elif accuracy < 0.7:
+            next_steps.extend([
+                f"Focus on application of {topic} concepts in varied contexts",
+                "Practice medium-difficulty problems to bridge knowledge gaps",
+                "Review common mistake patterns in your incorrect answers"
+            ])
+        else:
+            next_steps.extend([
+                f"Challenge yourself with advanced {topic} problems",
+                "Practice time management with timed problem sets",
+                f"Explore real-world applications of {topic} concepts"
+            ])
+        
+        # Add error-specific recommendations
+        if errors:
+            common_error_types = {}
+            for error in errors:
+                error_type = self._categorize_error(error)
+                common_error_types[error_type] = common_error_types.get(error_type, 0) + 1
+            
+            for error_type, count in common_error_types.items():
+                if count >= 2:
+                    next_steps.append(f"Address recurring {error_type} mistakes")
+        
+        return next_steps[:4]  # Return top 4 most relevant steps
+    
+    def _determine_study_focus(self, topic: str, accuracy: float, errors: List[Dict]) -> str:
+        """Determine the primary study focus for a topic"""
+        if accuracy < 0.3:
+            return "Foundation Building"
+        elif accuracy < 0.6:
+            return "Concept Application"
+        elif accuracy < 0.8:
+            return "Problem Solving"
+        else:
+            return "Mastery & Speed"
+    
+    def _estimate_study_time(self, accuracy: float, questions_attempted: int) -> str:
+        """Estimate weekly study time needed"""
+        base_hours = 2  # Base study hours per week
+        
+        if accuracy < 0.5:
+            multiplier = 2.5
+        elif accuracy < 0.7:
+            multiplier = 1.8
+        elif accuracy < 0.9:
+            multiplier = 1.2
+        else:
+            multiplier = 0.8
+        
+        estimated_hours = int(base_hours * multiplier)
+        return f"{estimated_hours}-{estimated_hours + 1} hours/week"
+    
+    def _create_recommendation_summary(self, metrics: Dict, topics: List[str]) -> str:
+        """Create an overall recommendation summary"""
+        accuracy = (metrics['total_correct'] / metrics['total_questions']) * 100
+        topic_list = ", ".join(topics)
+        
+        if accuracy >= 80:
+            return f"Strong performance across {topic_list}. Focus on advanced problem-solving and exam techniques."
+        elif accuracy >= 60:
+            return f"Good foundation in {topic_list}. Concentrate on application and bridging knowledge gaps."
+        elif accuracy >= 40:
+            return f"Basic understanding of {topic_list}. Prioritize fundamental concepts and guided practice."
+        else:
+            return f"Need significant improvement in {topic_list}. Start with core concepts and seek additional support."
+    
+    def _extract_teacher_insights(self, messages: List[str]) -> Dict[str, Any]:
+        """Extract key insights from MOE Teacher agent"""
+        return {
+            'focus': "Singapore GCE O-Level syllabus alignment",
+            'key_points': [
+                "Curriculum standards assessment",
+                "Learning objectives evaluation", 
+                "Common misconception identification"
+            ],
+            'recommendation': "Align study plan with official syllabus requirements"
+        }
+    
+    def _extract_student_insights(self, messages: List[str]) -> Dict[str, Any]:
+        """Extract key insights from Perfect Student agent"""
+        return {
+            'focus': "Efficiency and optimization strategies",
+            'key_points': [
+                "Problem-solving speed analysis",
+                "Method optimization opportunities",
+                "Strategic approach to difficulty levels"
+            ],
+            'recommendation': "Focus on technique refinement and time management"
+        }
+    
+    def _extract_tutor_insights(self, messages: List[str]) -> Dict[str, Any]:
+        """Extract key insights from Tutor agent"""
+        return {
+            'focus': "Knowledge gaps and remediation",
+            'key_points': [
+                "Foundational knowledge assessment",
+                "Specific error pattern analysis",
+                "Individualized learning strategies"
+            ],
+            'recommendation': "Address fundamental gaps through targeted practice"
+        }
+    
+    def _generate_immediate_actions(self, metrics: Dict, topics: List[str]) -> List[str]:
+        """Generate immediate action items"""
+        actions = []
+        
+        # Based on overall performance
+        accuracy = (metrics['total_correct'] / metrics['total_questions']) * 100
+        
+        if accuracy < 50:
+            actions.extend([
+                "Schedule review session for fundamental concepts",
+                "Create summary notes for each topic studied",
+                "Practice 5 basic problems daily"
+            ])
+        elif accuracy < 75:
+            actions.extend([
+                "Attempt 3 medium-difficulty problems per topic",
+                "Review incorrect answers and understand mistakes",
+                "Create mind maps linking related concepts"
+            ])
+        else:
+            actions.extend([
+                "Take a timed practice test",
+                "Teach concepts to someone else to reinforce learning",
+                "Attempt past exam papers"
+            ])
+        
+        return actions[:3]  # Top 3 immediate actions
+    
+    def _generate_weekly_study_plan(self, topic_recs: Dict) -> Dict[str, List[str]]:
+        """Generate a weekly study plan based on topic recommendations"""
+        days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+        weekly_plan = {}
+        
+        # Distribute topics across the week
+        topics = list(topic_recs.keys())
+        
+        for i, day in enumerate(days):
+            if i < len(topics):
+                topic = topics[i % len(topics)]
+                topic_rec = topic_recs[topic]
+                
+                daily_tasks = [
+                    f"Study {topic} - {topic_rec['study_focus']}",
+                    f"Complete {2 if topic_rec['accuracy'] < 70 else 3} practice problems",
+                ]
+                
+                if topic_rec['key_errors']:
+                    daily_tasks.append("Review and correct previous errors")
+                
+                weekly_plan[day] = daily_tasks
+            else:
+                weekly_plan[day] = ["Review and consolidate learning", "Practice mixed problems"]
+        
+        return weekly_plan
+    
+    def _generate_long_term_goals(self, level: str) -> List[str]:
+        """Generate long-term learning goals"""
+        goals_by_level = {
+            'beginner': [
+                "Build solid foundation in all topics within 4 weeks",
+                "Achieve 70% accuracy on basic problems",
+                "Develop consistent study habits"
+            ],
+            'apprentice': [
+                "Master application of concepts within 6 weeks", 
+                "Achieve 80% accuracy on medium-difficulty problems",
+                "Improve problem-solving speed by 25%"
+            ],
+            'pro': [
+                "Excel at complex problem-solving within 4 weeks",
+                "Achieve 90% accuracy on challenging problems", 
+                "Develop exam strategies and time management"
+            ],
+            'grandmaster': [
+                "Maintain excellence and help others",
+                "Explore advanced topics beyond syllabus",
+                "Achieve consistent perfect scores"
+            ]
+        }
+        
+        return goals_by_level.get(level, goals_by_level['beginner'])
+    
+    def _categorize_error(self, error: Dict) -> str:
+        """Categorize the type of error for targeted remediation"""
+        # This would ideally use NLP to analyze the error, but for now use simple heuristics
+        error_text = error.get('error', '').lower()
+        
+        if 'calculation' in error_text or 'arithmetic' in error_text:
+            return "calculation"
+        elif 'concept' in error_text or 'understanding' in error_text:
+            return "conceptual"
+        elif 'method' in error_text or 'approach' in error_text:
+            return "methodological"
+        elif 'time' in error_text or 'rushed' in error_text:
+            return "time management"
+        else:
+            return "general"
     
     async def evaluate_quiz_results_mesh(self, quiz_results: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -608,7 +899,7 @@ class MeshAgenticEvaluationService:
             mesh_discussion = await self.conduct_mesh_evaluation_discussion(metrics, topics)
             
             # Determine final assessment with enriched context
-            final_assessment = self.determine_expertise_level(mesh_discussion, metrics)
+            final_assessment = self.determine_expertise_level(mesh_discussion, metrics, topics)
             
             evaluation_results = {
                 'metrics': metrics,
@@ -629,65 +920,13 @@ class MeshAgenticEvaluationService:
             logger.error(f"Mesh evaluation failed: {str(e)}")
             raise
     
-    async def evaluate_quiz_results_mesh(self, quiz_results: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Main evaluation method using mesh topology with all agents communicating
-        """
-        try:
-            # Convert quiz results to QuizAnswer objects
-            answers = []
-            for answer_data in quiz_results.get('answers', []):
-                answers.append(QuizAnswer(
-                    topic=answer_data.get('topic', 'Unknown'),
-                    difficulty=answer_data.get('difficulty', 'medium'),
-                    is_correct=answer_data.get('isCorrect', False),
-                    time_spent=answer_data.get('timeSpent', 0),
-                    question_id=answer_data.get('questionId', ''),
-                    answer_given=answer_data.get('answerGiven', ''),
-                    correct_answer=answer_data.get('correctAnswer', '')
-                ))
-            
-            # Calculate performance metrics
-            metrics = self.calculate_performance_metrics(answers)
-            
-            # Setup mesh agents for collaborative evaluation
-            mesh_agents = self.setup_mesh_agents()
-            
-            # Run collaborative mesh evaluation (simplified for now)
-            discussion = []
-            
-            # Simulate mesh agent discussion
-            for persona_key, persona in self.agent_personas.items():
-                agent_analysis = {
-                    'agent': persona.name,
-                    'icon': persona.icon,
-                    'message': f"Analyzing from {persona.focus} perspective. Student shows {metrics['total_correct']}/{metrics['total_questions']} accuracy.",
-                    'timestamp': datetime.now().isoformat(),
-                    'phase': 'analysis'
-                }
-                discussion.append(agent_analysis)
-            
-            # Determine final expertise level
-            final_assessment = self.determine_expertise_level(discussion, metrics)
-            
-            return {
-                'metrics': metrics,
-                'agent_discussion': discussion,
-                'final_assessment': final_assessment,
-                'evaluation_method': 'mesh_agentic_collaborative',
-                'timestamp': datetime.now().isoformat()
-            }
-            
-        except Exception as e:
-            logger.error(f"Mesh evaluation failed: {str(e)}")
-            raise
 
     def format_evaluation_results(self, evaluation_results: Dict[str, Any]) -> Dict[str, Any]:
         """Format evaluation results for display and API responses"""
         metrics = evaluation_results['metrics']
         final_assessment = evaluation_results['final_assessment']
         
-        return {
+        formatted_result = {
             'summary': {
                 'total_questions': metrics['total_questions'],
                 'total_correct': metrics['total_correct'],
@@ -705,16 +944,22 @@ class MeshAgenticEvaluationService:
             'justification': final_assessment['justification'],
             'confidence': final_assessment['confidence'],
             'recommendation': final_assessment['recommendation'],
-            'mesh_discussion': evaluation_results['mesh_discussion'],
+            'mesh_discussion': evaluation_results.get('mesh_discussion', []),
             'breakdown': metrics['difficulty_breakdown'],
             'topic_performance': metrics['topic_performance'],
             'network_info': {
-                'topology': evaluation_results['network_topology'],
-                'method': evaluation_results['evaluation_method'],
-                'total_agents': evaluation_results['total_agents'],
-                'phases': evaluation_results['discussion_phases']
+                'topology': evaluation_results.get('network_topology', 'mesh'),
+                'method': evaluation_results.get('evaluation_method', 'unknown'),
+                'total_agents': evaluation_results.get('total_agents', 3),
+                'phases': evaluation_results.get('discussion_phases', 1)
             }
         }
+        
+        # Add rich recommendations if available
+        if 'rich_recommendations' in final_assessment:
+            formatted_result['rich_recommendations'] = final_assessment['rich_recommendations']
+        
+        return formatted_result
 
 # Demo and testing functions
 async def demo_mesh_agentic_evaluation():

@@ -5,6 +5,84 @@ import { doc, updateDoc, setDoc, Timestamp } from 'firebase/firestore';
 import { nurtureAPI } from '../services/api';
 
 /**
+ * Utility function to extract clean question text from various AI response formats
+ */
+const extractQuestionText = (questionData, index) => {
+  let questionText = '';
+  
+  try {
+    // Case 1: Simple string
+    if (typeof questionData === 'string') {
+      questionText = questionData;
+    }
+    // Case 2: Nested structure with content array
+    else if (questionData?.content?.[0]?.text) {
+      const fullText = questionData.content[0].text;
+      questionText = parseStructuredQuestionText(fullText);
+    }
+    // Case 3: Message property
+    else if (questionData?.message) {
+      if (typeof questionData.message === 'string') {
+        questionText = questionData.message;
+      } else if (questionData.message?.content?.[0]?.text) {
+        questionText = parseStructuredQuestionText(questionData.message.content[0].text);
+      }
+    }
+    // Case 4: Direct content array at top level
+    else if (Array.isArray(questionData) && questionData[0]?.text) {
+      questionText = parseStructuredQuestionText(questionData[0].text);
+    }
+    // Case 5: Fallback
+    else {
+      questionText = `Question ${index + 1}`;
+    }
+    
+    // Clean up the extracted text
+    questionText = questionText
+      .replace(/\*\*.*?\*\*/g, '') // Remove all **text** formatting
+      .replace(/\n+/g, ' ') // Replace newlines with spaces
+      .replace(/\s+/g, ' ') // Normalize whitespace
+      .trim();
+      
+    return questionText || `Question ${index + 1}`;
+    
+  } catch (error) {
+    console.warn(`Failed to parse question ${index + 1}:`, error);
+    return `Question ${index + 1}`;
+  }
+};
+
+/**
+ * Parse structured question text that may contain markdown formatting
+ */
+const parseStructuredQuestionText = (fullText) => {
+  if (!fullText || typeof fullText !== 'string') {
+    return '';
+  }
+  
+  // Try to extract question using various patterns
+  const patterns = [
+    // Pattern 1: **Question:** followed by content
+    /\*\*Question:\*\*\s*(.*?)(?:\*\*(?:Options|Correct Answer|Solution):|$)/s,
+    // Pattern 2: Question without formatting
+    /^([^*\n]+?)(?:\*\*|Options:|Correct Answer:|$)/,
+    // Pattern 3: Everything before first **Options** or similar
+    /^(.*?)(?:\*\*Options|Options:|Correct Answer:|$)/s
+  ];
+  
+  for (const pattern of patterns) {
+    const match = fullText.match(pattern);
+    if (match && match[1] && match[1].trim().length > 5) {
+      return match[1].trim();
+    }
+  }
+  
+  // Fallback: return first meaningful line
+  const firstLine = fullText.split('\n')[0];
+  return firstLine.length > 5 ? firstLine : fullText.substring(0, 200);
+};
+
+/**
  * Thin React UI Component for Evaluation Quiz
  * 
  * This component ONLY handles the user interface and experience.
@@ -102,31 +180,10 @@ function EvaluationQuiz({ user }) {
         // Immediate quiz data available (cached or fallback mode)
         const questions = response.quiz_data.questions || [];
         
-        // Clean and validate questions format - Updated to handle agent-generated content
+        // Clean and validate questions format - Improved robust parsing
         const cleanedQuestions = questions.map((q, index) => {
-          // Extract question text from nested structure
-          let questionText = '';
-          if (typeof q.question === 'string') {
-            questionText = q.question;
-          } else if (q.question?.content?.[0]?.text) {
-            // Parse the structured text content and extract just the question part
-            const fullText = q.question.content[0].text;
-            // Split by **Question:** and take the part after it, then split by **Options:** or **Correct Answer:**
-            const questionMatch = fullText.match(/\*\*Question:\*\*\s*(.*?)(?:\*\*(?:Options|Correct Answer):|$)/s);
-            if (questionMatch) {
-              questionText = questionMatch[1].trim();
-              // Remove any remaining markdown formatting
-              questionText = questionText.replace(/\*\*/g, '').replace(/\n+/g, ' ').trim();
-            } else {
-              // Fallback: take everything before "**Options:**" or "**Correct Answer:**"
-              questionText = fullText.split('**Options:**')[0].split('**Correct Answer:**')[0]
-                .replace(/\*\*Question:\*\*/g, '').replace(/\*\*/g, '').trim();
-            }
-          } else if (q.question?.message) {
-            questionText = q.question.message;
-          } else {
-            questionText = `Question ${index + 1}`;
-          }
+          // Extract question text using robust parsing logic
+          let questionText = extractQuestionText(q.question, index);
 
           return {
             id: q.id || `question_${index}`,
@@ -153,16 +210,24 @@ function EvaluationQuiz({ user }) {
         });
         setLoading(false);
       } else if (response.session_id) {
-        // Need to poll for progress (background generation)
+        // AGENTIC RAG: Need to poll for progress (AI agents working in background)
         setLoading(true);
         setStep('generating');
+        
+        // Determine if using agentic RAG or fallback based on response
+        const isAgenticRAG = response.method === 'agentic_rag' || response.status === 'generating_with_agentic_rag';
+        
         setGenerationProgress({ 
-          status: 'generating', 
-          message: response.message || 'Starting quiz generation...', 
+          status: isAgenticRAG ? 'agentic_rag_generating' : 'generating', 
+          message: response.message || (isAgenticRAG ? 'AI agents generating quiz using RAG...' : 'Generating quiz...'), 
           current_batch: 0, 
-          total_batches: 0,
-          session_id: response.session_id 
+          total_batches: response.agentic_system ? selectedTopics.length : 0,
+          session_id: response.session_id,
+          method: response.method || 'unknown',
+          agentic_system: response.agentic_system
         });
+        
+        console.log(`🧠 Starting ${isAgenticRAG ? 'AGENTIC RAG' : 'standard'} quiz generation with session:`, response.session_id);
         
         // Start polling for progress
         pollProgress(response.session_id);
@@ -182,11 +247,49 @@ function EvaluationQuiz({ user }) {
     }
   };
 
-  // Poll for quiz generation progress
+  // Poll for quiz generation progress with enhanced error handling
   const pollProgress = async (sessionId) => {
+    let pollCount = 0;
+    const maxPolls = 360; // Maximum 6 minutes of polling for agentic RAG
+    
     const poll = async () => {
       try {
+        pollCount++;
+        
+        // Safety check for maximum polling time
+        if (pollCount > maxPolls) {
+          // Request fallback quiz instead of throwing error
+          console.log('Quiz generation timed out after 6 minutes, requesting fallback...');
+          try {
+            const fallbackResponse = await fetch(`/api/quiz/fallback/${sessionId}`, {
+              method: 'POST'
+            });
+            
+            if (fallbackResponse.ok) {
+              const fallbackData = await fallbackResponse.json();
+              if (fallbackData.quiz_data) {
+                setQuestions(fallbackData.quiz_data.questions || []);
+                setLoading(false);
+                setError('AI generation timed out - using template questions');
+                return;
+              }
+            }
+          } catch (fallbackError) {
+            console.error('Fallback request failed:', fallbackError);
+          }
+          
+          // Final fallback - show error but don't crash
+          setError('Quiz generation timed out. Please try again with fewer topics.');
+          setLoading(false);
+          return;
+        }
+        
         const progress = await nurtureAPI.getQuizProgress(sessionId);
+        
+        // Validate progress response
+        if (!progress || typeof progress !== 'object') {
+          throw new Error('Invalid progress response from server');
+        }
         
         setGenerationProgress(prev => ({
           ...prev,
@@ -194,32 +297,69 @@ function EvaluationQuiz({ user }) {
         }));
         
         if (progress.status === 'completed' && progress.quiz_data) {
-          // Quiz generation completed successfully
-          setQuestions(progress.quiz_data.questions || []);
+          // Quiz generation completed successfully - whether agentic RAG or fallback
+          const isAgenticGenerated = progress.method === 'agentic_rag';
+          console.log(`✅ Quiz generation completed using: ${progress.method || 'unknown method'}`);
+          
+          // Validate quiz data structure
+          const questions = progress.quiz_data.questions || [];
+          if (questions.length === 0) {
+            throw new Error('Quiz completed but no questions were generated');
+          }
+          
+          setQuestions(questions);
           setStartTime(Date.now());
           setStep('quiz');
           setLoading(false);
+          
+          // Update progress to reflect completion method
+          setGenerationProgress(prev => ({
+            ...prev,
+            ...progress,
+            message: isAgenticGenerated ? 
+              'AI-powered quiz generated successfully!' : 
+              progress.message || 'Quiz loaded successfully'
+          }));
         } else if (progress.status === 'error') {
           // Generation failed
-          setError(progress.message || 'Quiz generation failed');
-          setLoading(false);
-        } else if (progress.status === 'generating' || progress.status === 'initializing' || progress.status === 'finalizing') {
-          // Still generating - continue polling
-          setTimeout(poll, 1000);
+          throw new Error(progress.message || 'Quiz generation failed');
+        } else if (progress.status === 'timeout') {
+          // AI timeout - show specific message
+          throw new Error(progress.message || 'AI generation timed out - please try again');
+        } else if (progress.status === 'ai_error') {
+          // AI-specific error - show detailed message
+          throw new Error(progress.message || 'AI system error - please try again');
+        } else if (progress.status === 'not_found') {
+          // Session not found
+          throw new Error('Quiz session not found - please try again');
+        } else if (progress.status === 'generating' || progress.status === 'agentic_rag_generating' || 
+                   progress.status === 'initializing_agents' || progress.status === 'initializing' || 
+                   progress.status === 'finalizing') {
+          // Still generating - continue polling (includes agentic RAG states)
+          setTimeout(() => poll().catch(handlePollError), 1000);
+        } else {
+          // Unknown status
+          console.warn(`Unknown progress status: ${progress.status}`);
+          setTimeout(() => poll().catch(handlePollError), 1000);
         }
       } catch (err) {
-        setError('Failed to get progress: ' + err.message);
-        setGenerationProgress(prev => ({ 
-          ...prev, 
-          status: 'error', 
-          message: err.message 
-        }));
-        setLoading(false);
+        handlePollError(err);
       }
     };
     
-    // Start polling
-    poll();
+    const handlePollError = (err) => {
+      console.error('Polling error:', err);
+      setError('Failed to get progress: ' + err.message);
+      setGenerationProgress(prev => ({ 
+        ...prev, 
+        status: 'error', 
+        message: err.message 
+      }));
+      setLoading(false);
+    };
+    
+    // Start polling with error handling
+    poll().catch(handlePollError);
   };
 
   const handleAnswer = (answer) => {
@@ -414,6 +554,12 @@ function EvaluationQuiz({ user }) {
           
           // Use the correct nested structure as specified in README
           const topicRef = doc(db, 'users', userId, 'subjects', subjectName, 'topics', topicName);
+          // Extract topic-specific rich recommendations
+          let topicRichRecommendation = null;
+          if (evaluationResults?.rich_recommendations?.topic_recommendations) {
+            topicRichRecommendation = evaluationResults.rich_recommendations.topic_recommendations[topic];
+          }
+
           const topicData = {
             userId: userId,
             topicId: topicName,
@@ -432,7 +578,25 @@ function EvaluationQuiz({ user }) {
               correctAnswer: a.correctAnswer,
               isCorrect: a.isCorrect,
               difficulty: a.difficulty
-            }))
+            })),
+            // Add rich recommendations for this topic
+            recommendation: topicRichRecommendation || {
+              next_steps: [`Continue practicing ${topic} problems`],
+              study_focus: score >= 70 ? 'Mastery & Speed' : 'Foundation Building',
+              time_estimate: '2-3 hours/week',
+              key_errors: [],
+              accuracy: score,
+              generated_at: new Date().toISOString(),
+              agent_insights: evaluationResults?.rich_recommendations?.agent_perspectives || null,
+              immediate_actions: evaluationResults?.rich_recommendations?.immediate_actions || [],
+              weekly_plan_excerpt: evaluationResults?.rich_recommendations?.weekly_plan ? 
+                Object.entries(evaluationResults.rich_recommendations.weekly_plan)
+                  .slice(0, 3)
+                  .reduce((acc, [day, tasks]) => {
+                    acc[day] = tasks.filter(task => task.includes(topic));
+                    return acc;
+                  }, {}) : {}
+            }
           };
           
           await setDoc(topicRef, topicData, { merge: true });
@@ -467,7 +631,10 @@ function EvaluationQuiz({ user }) {
           <div style={{ fontSize: 'var(--text-3xl)', marginBottom: 'var(--space-4)' }}>🧠</div>
           <h2>
             {step === 'selection' ? 'Loading subjects...' : 
-             step === 'generating' ? 'Generating personalized assessment...' : 
+             step === 'generating' ? (
+               generationProgress.status === 'agentic_rag_generating' || generationProgress.method === 'agentic_rag' ?
+               '🧠 AI Agents Generating Quiz...' : 'Generating personalized assessment...'
+             ) : 
              'Preparing your quiz...'}
           </h2>
           
@@ -523,18 +690,32 @@ function EvaluationQuiz({ user }) {
             )}
           </p>
           
-          {/* AI Agent status indicators - Updated to match Python implementation */}
-          {generationProgress.status === 'generating' && (
+          {/* AI Agent status indicators - Shows agentic RAG vs fallback */}
+          {step === 'generating' && (
             <div style={{ 
               marginTop: 'var(--space-4)', 
               fontSize: 'var(--text-xs)', 
               opacity: 0.6 
             }}>
-              <div>🔄 AWS Strands SDK</div>
-              <div>⚡ Claude Sonnet 4.0 (anthropic.claude-sonnet-4-20250514-v1:0)</div>
-              <div>📡 Real PDF fetching with http_request tool</div>
-              <div>🚀 Batch processing: 3 questions per batch</div>
-              <div>🧠 Memory management: Fresh conversation per question</div>
+              {generationProgress.method === 'agentic_rag' || generationProgress.status === 'agentic_rag_generating' ? (
+                // AGENTIC RAG indicators
+                <>
+                  <div>🧠 <strong>AGENTIC RAG ACTIVE</strong></div>
+                  <div>🔄 AWS Strands SDK Multi-Agent System</div>
+                  <div>⚡ Claude Sonnet 4.0 (anthropic.claude-sonnet-4-20250514-v1:0)</div>
+                  <div>📡 Real-time PDF content fetching</div>
+                  <div>🤖 Agent pool system with batch processing</div>
+                  <div>🎯 Singapore O-Level syllabus alignment</div>
+                  <div>🚀 AI-generated questions with explanations</div>
+                </>
+              ) : (
+                // Fallback indicators
+                <>
+                  <div>📝 Static question templates</div>
+                  <div>⚠️ Agentic RAG unavailable</div>
+                  <div>🔧 Basic question generation</div>
+                </>
+              )}
             </div>
           )}
         </div>
@@ -677,9 +858,27 @@ function EvaluationQuiz({ user }) {
               {currentQuestion.difficulty} • {currentQuestion.topic}
             </div>
             
-            <h2 style={{ lineHeight: 1.4, marginBottom: 'var(--space-6)' }}>
-              {typeof currentQuestion.question === 'string' ? currentQuestion.question : 'Question loading...'}
-            </h2>
+            <div style={{ 
+              fontSize: 'var(--text-lg)', 
+              lineHeight: 1.6, 
+              marginBottom: 'var(--space-6)',
+              wordWrap: 'break-word',
+              overflowWrap: 'anywhere',
+              whiteSpace: 'pre-wrap',
+              maxHeight: '400px',
+              overflowY: 'auto',
+              padding: 'var(--space-2)',
+              border: '1px solid rgba(163, 184, 165, 0.2)',
+              borderRadius: 'var(--radius-md)',
+              background: 'rgba(30, 43, 34, 0.1)'
+            }}>
+              {typeof currentQuestion.question === 'string' ? 
+                currentQuestion.question
+                  .replace(/\*\*(.*?)\*\*/g, '$1') // Remove bold formatting
+                  .replace(/Question:\s*/gi, '') // Remove "Question:" prefix
+                  .trim()
+                : 'Question loading...'}
+            </div>
           </div>
           
           {/* Answer Options */}
@@ -697,7 +896,14 @@ function EvaluationQuiz({ user }) {
                     background: 'rgba(30, 43, 34, 0.3)',
                     color: 'var(--soft-white)',
                     cursor: 'pointer',
-                    transition: 'all var(--transition-normal)'
+                    transition: 'all var(--transition-normal)',
+                    fontSize: 'var(--text-base)',
+                    lineHeight: 1.5,
+                    wordWrap: 'break-word',
+                    whiteSpace: 'normal',
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: 'var(--space-3)'
                   }}
                   onMouseEnter={(e) => {
                     e.target.style.background = 'rgba(73, 184, 91, 0.2)';
@@ -891,7 +1097,155 @@ function EvaluationQuiz({ user }) {
             {typeof evaluation.justification === 'string' ? evaluation.justification : 'Assessment completed successfully'}
           </p>
           
-          {evaluation.recommendation && (
+          {/* Rich Recommendations Section */}
+          {evaluation.rich_recommendations ? (
+            <div style={{ marginBottom: 'var(--space-6)' }}>
+              {/* Overall Summary */}
+              <div style={{
+                padding: 'var(--space-4)',
+                background: 'rgba(73, 184, 91, 0.1)',
+                borderRadius: 'var(--radius-lg)',
+                marginBottom: 'var(--space-4)',
+                border: '1px solid rgba(73, 184, 91, 0.3)'
+              }}>
+                <h3 style={{ margin: '0 0 var(--space-2) 0', display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+                  💡 Personalized Learning Plan
+                </h3>
+                <p style={{ margin: 0, opacity: 0.9 }}>
+                  {evaluation.rich_recommendations.summary}
+                </p>
+              </div>
+
+              {/* Topic-Specific Recommendations */}
+              {Object.values(evaluation.rich_recommendations.topic_recommendations || {}).map((topicRec, index) => (
+                <div key={index} style={{
+                  padding: 'var(--space-4)',
+                  background: 'rgba(30, 43, 34, 0.3)',
+                  borderRadius: 'var(--radius-lg)',
+                  marginBottom: 'var(--space-4)',
+                  border: '1px solid rgba(163, 184, 165, 0.3)'
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-3)' }}>
+                    <h4 style={{ margin: 0 }}>{topicRec.topic}</h4>
+                    <div style={{ display: 'flex', gap: 'var(--space-3)', alignItems: 'center' }}>
+                      <span style={{ 
+                        background: topicRec.accuracy >= 70 ? 'rgba(73, 184, 91, 0.2)' : 'rgba(255, 107, 107, 0.2)',
+                        color: topicRec.accuracy >= 70 ? 'var(--vibrant-leaf)' : '#FF6B6B',
+                        padding: 'var(--space-1) var(--space-2)',
+                        borderRadius: 'var(--radius-md)',
+                        fontSize: 'var(--text-sm)',
+                        fontWeight: 'bold'
+                      }}>
+                        {topicRec.accuracy}%
+                      </span>
+                      <span style={{ 
+                        background: 'rgba(73, 184, 91, 0.2)',
+                        color: 'var(--vibrant-leaf)',
+                        padding: 'var(--space-1) var(--space-2)',
+                        borderRadius: 'var(--radius-md)',
+                        fontSize: 'var(--text-xs)'
+                      }}>
+                        {topicRec.study_focus}
+                      </span>
+                    </div>
+                  </div>
+                  
+                  <div style={{ fontSize: 'var(--text-sm)', opacity: 0.9 }}>
+                    <strong>Next Steps:</strong>
+                    <ul style={{ marginTop: 'var(--space-2)', paddingLeft: 'var(--space-4)' }}>
+                      {topicRec.next_steps?.map((step, stepIndex) => (
+                        <li key={stepIndex} style={{ marginBottom: 'var(--space-1)' }}>{step}</li>
+                      ))}
+                    </ul>
+                    <div style={{ marginTop: 'var(--space-2)' }}>
+                      <strong>Recommended Study Time:</strong> {topicRec.time_estimate}
+                    </div>
+                  </div>
+                </div>
+              ))}
+
+              {/* Agent Perspectives */}
+              {evaluation.rich_recommendations.agent_perspectives && (
+                <div style={{
+                  padding: 'var(--space-4)',
+                  background: 'rgba(30, 43, 34, 0.3)',
+                  borderRadius: 'var(--radius-lg)',
+                  marginBottom: 'var(--space-4)',
+                  border: '1px solid rgba(163, 184, 165, 0.3)'
+                }}>
+                  <h4 style={{ marginBottom: 'var(--space-3)' }}>🤖 AI Agent Insights</h4>
+                  <div style={{ display: 'grid', gap: 'var(--space-3)' }}>
+                    {Object.entries(evaluation.rich_recommendations.agent_perspectives).map(([agentKey, insight]) => (
+                      <div key={agentKey} style={{
+                        padding: 'var(--space-3)',
+                        background: 'rgba(73, 184, 91, 0.1)',
+                        borderRadius: 'var(--radius-md)',
+                        borderLeft: '3px solid var(--vibrant-leaf)'
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', marginBottom: 'var(--space-2)' }}>
+                          <span>{agentKey === 'moe_teacher' ? '👩‍🏫' : agentKey === 'perfect_student' ? '🏆' : '🎓'}</span>
+                          <strong style={{ fontSize: 'var(--text-sm)' }}>
+                            {agentKey === 'moe_teacher' ? 'MOE Teacher' : 
+                             agentKey === 'perfect_student' ? 'Perfect Student' : 'Tutor'}
+                          </strong>
+                        </div>
+                        <p style={{ fontSize: 'var(--text-sm)', margin: 0, opacity: 0.9 }}>
+                          {insight.recommendation}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Immediate Actions */}
+              {evaluation.rich_recommendations.immediate_actions && (
+                <div style={{
+                  padding: 'var(--space-4)',
+                  background: 'rgba(73, 184, 91, 0.1)',
+                  borderRadius: 'var(--radius-lg)',
+                  marginBottom: 'var(--space-4)',
+                  border: '1px solid rgba(73, 184, 91, 0.3)'
+                }}>
+                  <h4 style={{ marginBottom: 'var(--space-3)' }}>⚡ Immediate Action Items</h4>
+                  <ul style={{ paddingLeft: 'var(--space-4)', fontSize: 'var(--text-sm)' }}>
+                    {evaluation.rich_recommendations.immediate_actions.map((action, index) => (
+                      <li key={index} style={{ marginBottom: 'var(--space-2)' }}>{action}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* Weekly Study Plan */}
+              {evaluation.rich_recommendations.weekly_plan && (
+                <div style={{
+                  padding: 'var(--space-4)',
+                  background: 'rgba(30, 43, 34, 0.3)',
+                  borderRadius: 'var(--radius-lg)',
+                  marginBottom: 'var(--space-4)',
+                  border: '1px solid rgba(163, 184, 165, 0.3)'
+                }}>
+                  <h4 style={{ marginBottom: 'var(--space-3)' }}>📅 Weekly Study Plan</h4>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 'var(--space-2)' }}>
+                    {Object.entries(evaluation.rich_recommendations.weekly_plan).map(([day, tasks]) => (
+                      <div key={day} style={{
+                        padding: 'var(--space-2)',
+                        background: 'rgba(73, 184, 91, 0.1)',
+                        borderRadius: 'var(--radius-md)',
+                        fontSize: 'var(--text-xs)'
+                      }}>
+                        <strong style={{ display: 'block', marginBottom: 'var(--space-1)' }}>{day}</strong>
+                        {tasks.map((task, index) => (
+                          <div key={index} style={{ opacity: 0.8, marginBottom: 'var(--space-1)' }}>• {task}</div>
+                        ))}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : evaluation.recommendation && (
+            // Fallback to simple recommendation if rich recommendations not available
             <div style={{
               padding: 'var(--space-4)',
               background: 'rgba(73, 184, 91, 0.1)',

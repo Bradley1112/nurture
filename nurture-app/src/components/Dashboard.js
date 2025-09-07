@@ -145,7 +145,7 @@ function Dashboard({ user }) {
                         <div className="flex-1">
                           <p className="font-medium">{topic.name}</p>
                           <p className={`text-sm ${expertiseColorMapping[topicData.expertiseLevel]}`}>
-                            {topicData.expertiseLevel}
+                            {topicData.expertiseLevel.charAt(0).toUpperCase() + topicData.expertiseLevel.slice(1).toLowerCase()}
                           </p>
                         </div>
                         <button 

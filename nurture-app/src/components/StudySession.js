@@ -160,32 +160,18 @@ const StudySession = () => {
         userId: getAuth().currentUser?.uid,
       };
 
-      // Step 1: Initialize backend session via API
+      // Step 1: Initialize backend session via API service
       console.log("🔗 Calling backend session initialization...");
-      const initResponse = await fetch("/api/study-session/initialize", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          user_id: sessionContext.userId,
-          topic_id: sessionContext.topicId,
-          subject_id: sessionContext.subjectId,
-          expertise_level: sessionContext.expertiseLevel,
-          focus_level: sessionContext.focusLevel,
-          stress_level: sessionContext.stressLevel,
-          session_duration: sessionContext.sessionDuration,
-          exam_date: sessionContext.examDate,
-        }),
+      const backendSessionData = await studySessionAPI.initializeSession({
+        userId: sessionContext.userId,
+        topicId: sessionContext.topicId,
+        subjectId: sessionContext.subjectId,
+        expertiseLevel: sessionContext.expertiseLevel,
+        focusLevel: sessionContext.focusLevel,
+        stressLevel: sessionContext.stressLevel,
+        sessionDuration: sessionContext.sessionDuration,
+        examDate: sessionContext.examDate,
       });
-
-      if (!initResponse.ok) {
-        throw new Error(
-          `Backend session initialization failed: ${initResponse.status}`
-        );
-      }
-
-      const backendSessionData = await initResponse.json();
       console.log("✅ Backend session initialized:", backendSessionData);
 
       // Step 2: Initialize the frontend agent graph with session_id

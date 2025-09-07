@@ -243,28 +243,84 @@ function Dashboard({ user }) {
       {/* Main Dashboard Content */}
       <div className="px-4 sm:px-6 lg:px-8 pb-8">
         <div className="max-w-full mx-auto">
-          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between mb-8 space-y-4 lg:space-y-0">
+          <div 
+            className="mb-8"
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              flexWrap: 'wrap',
+              gap: '16px'
+            }}
+          >
             <h2 className="text-2xl lg:text-3xl font-bold text-white">Your Learning Journey</h2>
-            <div className="flex flex-wrap items-center gap-3 lg:gap-4">
-              <div className="flex items-center space-x-2 text-xs lg:text-sm text-gray-400">
-                <div className="w-3 h-3 rounded-full bg-gray-500 flex-shrink-0"></div>
-                <span className="whitespace-nowrap">Not Evaluated</span>
+            <div 
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '16px',
+                flexWrap: 'wrap'
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div 
+                  style={{
+                    width: '12px',
+                    height: '12px',
+                    borderRadius: '50%',
+                    backgroundColor: '#6b7280',
+                    flexShrink: 0
+                  }}
+                ></div>
+                <span style={{ fontSize: '14px', color: '#9ca3af', whiteSpace: 'nowrap' }}>Not Evaluated</span>
               </div>
-              <div className="flex items-center space-x-2 text-xs lg:text-sm text-red-400">
-                <div className="w-3 h-3 rounded-full bg-red-500 flex-shrink-0"></div>
-                <span className="whitespace-nowrap">Beginner</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div 
+                  style={{
+                    width: '12px',
+                    height: '12px',
+                    borderRadius: '50%',
+                    backgroundColor: '#ef4444',
+                    flexShrink: 0
+                  }}
+                ></div>
+                <span style={{ fontSize: '14px', color: '#fca5a5', whiteSpace: 'nowrap' }}>Beginner</span>
               </div>
-              <div className="flex items-center space-x-2 text-xs lg:text-sm text-yellow-400">
-                <div className="w-3 h-3 rounded-full bg-yellow-500 flex-shrink-0"></div>
-                <span className="whitespace-nowrap">Apprentice</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div 
+                  style={{
+                    width: '12px',
+                    height: '12px',
+                    borderRadius: '50%',
+                    backgroundColor: '#f59e0b',
+                    flexShrink: 0
+                  }}
+                ></div>
+                <span style={{ fontSize: '14px', color: '#fbbf24', whiteSpace: 'nowrap' }}>Apprentice</span>
               </div>
-              <div className="flex items-center space-x-2 text-xs lg:text-sm text-green-400">
-                <div className="w-3 h-3 rounded-full bg-green-500 flex-shrink-0"></div>
-                <span className="whitespace-nowrap">Pro</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div 
+                  style={{
+                    width: '12px',
+                    height: '12px',
+                    borderRadius: '50%',
+                    backgroundColor: '#22c55e',
+                    flexShrink: 0
+                  }}
+                ></div>
+                <span style={{ fontSize: '14px', color: '#4ade80', whiteSpace: 'nowrap' }}>Pro</span>
               </div>
-              <div className="flex items-center space-x-2 text-xs lg:text-sm text-blue-400">
-                <div className="w-3 h-3 rounded-full bg-blue-500 flex-shrink-0"></div>
-                <span className="whitespace-nowrap">Grand Master</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div 
+                  style={{
+                    width: '12px',
+                    height: '12px',
+                    borderRadius: '50%',
+                    backgroundColor: '#3b82f6',
+                    flexShrink: 0
+                  }}
+                ></div>
+                <span style={{ fontSize: '14px', color: '#60a5fa', whiteSpace: 'nowrap' }}>Grand Master</span>
               </div>
             </div>
           </div>

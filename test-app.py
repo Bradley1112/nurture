@@ -16,7 +16,7 @@ def test_backend_startup():
     
     try:
         # Test health check endpoint
-        response = requests.get('http://localhost:5000/', timeout=5)
+        response = requests.get('http://localhost:8000/api/health/', timeout=5)
         if response.status_code == 200:
             data = response.json()
             print(f"✅ Backend is healthy: {data['service']}")
@@ -34,7 +34,7 @@ def test_subjects_endpoint():
     print("🧪 Testing subjects endpoint...")
     
     try:
-        response = requests.get('http://localhost:5000/api/subjects', timeout=10)
+        response = requests.get('http://localhost:8000/api/subjects', timeout=10)
         if response.status_code == 200:
             data = response.json()
             subjects = data.get('subjects', [])
@@ -60,7 +60,7 @@ def test_quiz_generation():
         }
         
         response = requests.post(
-            'http://localhost:5000/api/quiz/start', 
+            'http://localhost:8000/api/quiz/start', 
             json=quiz_data,
             timeout=30
         )
@@ -81,7 +81,7 @@ def test_quiz_generation():
                 # Poll for completion
                 for i in range(30):  # Wait up to 30 seconds
                     time.sleep(1)
-                    progress_response = requests.get(f'http://localhost:5000/api/quiz/progress/{session_id}')
+                    progress_response = requests.get(f'http://localhost:8000/api/quiz/progress/{session_id}')
                     
                     if progress_response.status_code == 200:
                         progress_data = progress_response.json()
@@ -143,7 +143,7 @@ def test_quiz_evaluation():
     
     try:
         response = requests.post(
-            'http://localhost:5000/api/quiz/evaluate',
+            'http://localhost:8000/api/quiz/evaluate',
             json={"quiz_results": quiz_results},
             timeout=30
         )

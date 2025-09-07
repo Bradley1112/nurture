@@ -20,6 +20,7 @@
       "Bash(npm run build:*)",
       "Bash(PORT=3000 npm start)",
       "Bash(BACKEND_PORT=8000 python backend/app.py)",
+      "Bash(BACKEND_PORT=8000 python backend/app.py)",
       "Bash(pip3 install:*)",
       "Bash(BACKEND_PORT=8000 python app.py)",
       "Bash(aws:*)",

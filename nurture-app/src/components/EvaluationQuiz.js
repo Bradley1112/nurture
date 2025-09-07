@@ -1086,7 +1086,9 @@ function EvaluationQuiz({ user }) {
               </div>
               <div>
                 <div style={{ fontSize: 'var(--text-2xl)', fontWeight: 'bold', color: 'var(--vibrant-leaf)' }}>
-                  {typeof evaluation.expertiseLevel === 'string' ? evaluation.expertiseLevel : 'Beginner'}
+                  {typeof evaluation.expertiseLevel === 'string' ? 
+                    evaluation.expertiseLevel.charAt(0).toUpperCase() + evaluation.expertiseLevel.slice(1).toLowerCase() : 
+                    'Beginner'}
                 </div>
                 <div style={{ fontSize: 'var(--text-sm)', opacity: 0.8 }}>Level</div>
               </div>

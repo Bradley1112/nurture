@@ -1014,7 +1014,7 @@ const StudySession = () => {
         <div className="flex items-center">
           <h1 className="text-xl font-bold">📚 {topicId.replace(/_/g, " ")}</h1>
           <span className="ml-4 text-sm text-gray-300">
-            {expertiseLevel} • Focus: {focusLevel}/5 • Stress: {stressLevel}/5
+            {expertiseLevel.charAt(0).toUpperCase() + expertiseLevel.slice(1).toLowerCase()} • Focus: {focusLevel}/5 • Stress: {stressLevel}/5
           </span>
           <span className="ml-4 text-sm" style={{ color: "#49B85B" }}>
             {sessionData.simulationMode

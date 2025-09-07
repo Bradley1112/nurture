@@ -49,7 +49,7 @@ class NurtureAPI {
    * Get available subjects and topics for quiz selection
    */
   async getSubjects() {
-    return this.request('/api/health/subjects');
+    return this.request('/api/subjects');
   }
 
   /**

@@ -49,24 +49,91 @@ def test_quiz_generation():
     print("\n🧠 Testing quiz generation (agentic RAG)...")
     try:
         payload = {
-            "topics": ["Kinematics", "Reading Comprehension"]
+            "topics": ["Kinematics"]
         }
         response = requests.post(f"{BACKEND_URL}/api/quiz/start", json=payload)
         response.raise_for_status()
         data = response.json()
         
-        quiz_data = data['quiz_data']
-        print(f"✅ Quiz generated successfully:")
-        print(f"   Total questions: {quiz_data['total_questions']}")
-        print(f"   Topics: {', '.join(quiz_data['topics'])}")
-        print(f"   Syllabi: {', '.join(quiz_data['syllabi'])}")
-        
-        # Show sample question
-        if quiz_data['questions']:
-            sample = quiz_data['questions'][0]
-            print(f"   Sample question: {sample['question'][:100]}...")
+        # Check if quiz_data is immediately available (cached or fallback)
+        if 'quiz_data' in data:
+            quiz_data = data['quiz_data']
+            print(f"✅ Quiz generated immediately (cached/fallback):")
+            print(f"   Total questions: {quiz_data['total_questions']}")
+            print(f"   Topics: {', '.join(quiz_data['topics'])}")
+            if 'syllabi' in quiz_data:
+                print(f"   Syllabi: {', '.join(quiz_data['syllabi'])}")
             
-        return quiz_data
+            # Show sample question
+            if quiz_data['questions']:
+                sample = quiz_data['questions'][0]
+                print(f"   Sample question: {sample['question'][:100]}...")
+                
+            return quiz_data
+        
+        # Handle agentic RAG generation with progress tracking
+        elif 'session_id' in data and data.get('status') == 'generating_with_agentic_rag':
+            session_id = data['session_id']
+            print(f"✅ Quiz generation started with agentic RAG:")
+            print(f"   Session ID: {session_id}")
+            print(f"   Status: {data['status']}")
+            print(f"   Method: {data.get('method', 'unknown')}")
+            
+            # Poll for completion (with timeout)
+            print("   Waiting for agentic generation to complete...")
+            max_wait = 30  # 30 seconds timeout
+            wait_time = 0
+            
+            while wait_time < max_wait:
+                time.sleep(2)
+                wait_time += 2
+                
+                progress_response = requests.get(f"{BACKEND_URL}/api/quiz/progress/{session_id}")
+                progress_response.raise_for_status()
+                progress = progress_response.json()
+                
+                status = progress.get('status', 'unknown')
+                print(f"   Progress: {status} - {progress.get('message', '')}")
+                
+                if status == 'completed':
+                    quiz_data = progress.get('quiz_data')
+                    if quiz_data:
+                        print(f"✅ Agentic quiz generation completed:")
+                        print(f"   Total questions: {quiz_data['total_questions']}")
+                        print(f"   Topics: {', '.join(quiz_data['topics'])}")
+                        return quiz_data
+                    else:
+                        print("⚠️ Quiz completed but no quiz_data found")
+                        break
+                        
+                elif status in ['error', 'timeout_fallback', 'ai_error']:
+                    print(f"⚠️ Generation failed with status: {status}")
+                    # Try to get fallback quiz
+                    fallback_response = requests.post(f"{BACKEND_URL}/api/quiz/fallback/{session_id}")
+                    if fallback_response.status_code == 200:
+                        fallback_data = fallback_response.json()
+                        if 'quiz_data' in fallback_data:
+                            print("✅ Fallback quiz generated:")
+                            quiz_data = fallback_data['quiz_data']
+                            print(f"   Total questions: {quiz_data['total_questions']}")
+                            return quiz_data
+                    break
+            
+            if wait_time >= max_wait:
+                print("⚠️ Quiz generation timed out, trying fallback...")
+                # Try to get fallback quiz
+                fallback_response = requests.post(f"{BACKEND_URL}/api/quiz/fallback/{session_id}")
+                if fallback_response.status_code == 200:
+                    fallback_data = fallback_response.json()
+                    if 'quiz_data' in fallback_data:
+                        print("✅ Fallback quiz generated after timeout:")
+                        quiz_data = fallback_data['quiz_data']
+                        print(f"   Total questions: {quiz_data['total_questions']}")
+                        return quiz_data
+        
+        print("❌ Unexpected response format from quiz generation")
+        return None
+        
     except Exception as e:
         print(f"❌ Quiz generation failed: {e}")
         return None

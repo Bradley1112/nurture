@@ -5,7 +5,7 @@
  * for Part 7 study sessions with Agent Graph (Star Topology).
  */
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+const API_BASE_URL = process.env.REACT_APP_API_URL || '';
 
 class StudySessionAPI {
     constructor() {

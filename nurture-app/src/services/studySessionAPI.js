@@ -13,6 +13,26 @@ class StudySessionAPI {
     }
 
     /**
+     * Map frontend expertise levels to backend expected values
+     * Frontend: "Beginner", "Apprentice", "Pro", "Grand Master"  
+     * Backend: "beginner", "apprentice", "pro", "grandmaster"
+     */
+    mapExpertiseLevel(frontendLevel) {
+        const mapping = {
+            'Beginner': 'beginner',
+            'Apprentice': 'apprentice', 
+            'Pro': 'pro',
+            'Grand Master': 'grandmaster',
+            // Handle lowercase versions too
+            'beginner': 'beginner',
+            'apprentice': 'apprentice',
+            'pro': 'pro',
+            'grandmaster': 'grandmaster'
+        };
+        return mapping[frontendLevel] || 'beginner';
+    }
+
+    /**
      * Initialize a new study session with AWS Strands Agent Graph
      * @param {Object} sessionData - Session initialization data
      * @returns {Promise<Object>} Session initialization response
@@ -30,7 +50,7 @@ class StudySessionAPI {
                     user_id: sessionData.userId,
                     topic_id: sessionData.topicId,
                     subject_id: sessionData.subjectId,
-                    expertise_level: sessionData.expertiseLevel || 'beginner',
+                    expertise_level: this.mapExpertiseLevel(sessionData.expertiseLevel || 'beginner'),
                     focus_level: sessionData.focusLevel || 5,
                     stress_level: sessionData.stressLevel || 3,
                     session_duration: sessionData.sessionDuration || 60,

@@ -243,86 +243,8 @@ function Dashboard({ user }) {
       {/* Main Dashboard Content */}
       <div className="px-4 sm:px-6 lg:px-8 pb-8">
         <div className="max-w-full mx-auto">
-          <div 
-            className="mb-8"
-            style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              flexWrap: 'wrap',
-              gap: '16px'
-            }}
-          >
+          <div className="mb-8">
             <h2 className="text-2xl lg:text-3xl font-bold text-white">Your Learning Journey</h2>
-            <div 
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '16px',
-                flexWrap: 'wrap'
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <div 
-                  style={{
-                    width: '12px',
-                    height: '12px',
-                    borderRadius: '50%',
-                    backgroundColor: '#6b7280',
-                    flexShrink: 0
-                  }}
-                ></div>
-                <span style={{ fontSize: '14px', color: '#9ca3af', whiteSpace: 'nowrap' }}>Not Evaluated</span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <div 
-                  style={{
-                    width: '12px',
-                    height: '12px',
-                    borderRadius: '50%',
-                    backgroundColor: '#ef4444',
-                    flexShrink: 0
-                  }}
-                ></div>
-                <span style={{ fontSize: '14px', color: '#fca5a5', whiteSpace: 'nowrap' }}>Beginner</span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <div 
-                  style={{
-                    width: '12px',
-                    height: '12px',
-                    borderRadius: '50%',
-                    backgroundColor: '#f59e0b',
-                    flexShrink: 0
-                  }}
-                ></div>
-                <span style={{ fontSize: '14px', color: '#fbbf24', whiteSpace: 'nowrap' }}>Apprentice</span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <div 
-                  style={{
-                    width: '12px',
-                    height: '12px',
-                    borderRadius: '50%',
-                    backgroundColor: '#22c55e',
-                    flexShrink: 0
-                  }}
-                ></div>
-                <span style={{ fontSize: '14px', color: '#4ade80', whiteSpace: 'nowrap' }}>Pro</span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <div 
-                  style={{
-                    width: '12px',
-                    height: '12px',
-                    borderRadius: '50%',
-                    backgroundColor: '#3b82f6',
-                    flexShrink: 0
-                  }}
-                ></div>
-                <span style={{ fontSize: '14px', color: '#60a5fa', whiteSpace: 'nowrap' }}>Grand Master</span>
-              </div>
-            </div>
           </div>
 
           {loading ? (
@@ -374,8 +296,8 @@ function Dashboard({ user }) {
                           <div 
                             className="w-12 h-12 rounded-xl flex items-center justify-center text-2xl"
                             style={{
-                              background: `linear-gradient(135deg, ${['#ef4444', '#f59e0b', '#22c55e'][index]} 0%, ${['#f87171', '#fbbf24', '#4ade80'][index]} 100%)`,
-                              boxShadow: `0 8px 16px ${['rgba(239, 68, 68, 0.3)', 'rgba(245, 158, 11, 0.3)', 'rgba(34, 197, 94, 0.3)'][index]}`
+                              background: 'linear-gradient(135deg, #49B85B 0%, #22c55e 100%)',
+                              boxShadow: '0 8px 16px rgba(73, 184, 91, 0.3)'
                             }}
                           >
                             {['⚡', '📐', '📚'][index]}
@@ -407,28 +329,24 @@ function Dashboard({ user }) {
                             key={topic.id} 
                             className="relative group/topic"
                             style={{
-                              background: colors.bg,
-                              border: `2px solid ${colors.border}40`,
+                              background: 'rgba(255, 255, 255, 0.05)',
+                              border: '2px solid rgba(255, 255, 255, 0.1)',
                               borderRadius: '16px',
                               padding: '20px',
                               transition: 'all 0.3s ease'
                             }}
                             onMouseEnter={(e) => {
-                              e.currentTarget.style.borderColor = colors.border;
+                              e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.2)';
                               e.currentTarget.style.transform = 'scale(1.02)';
                             }}
                             onMouseLeave={(e) => {
-                              e.currentTarget.style.borderColor = `${colors.border}40`;
+                              e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.1)';
                               e.currentTarget.style.transform = 'scale(1)';
                             }}
                           >
                             <div className="flex items-start justify-between">
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-center space-x-3 mb-3">
-                                  <div 
-                                    className="w-4 h-4 rounded-full flex-shrink-0"
-                                    style={{ backgroundColor: colors.dot }}
-                                  ></div>
                                   <h4 className="font-semibold text-white text-sm leading-tight">
                                     {topic.name.length > 80 ? `${topic.name.substring(0, 80)}...` : topic.name}
                                   </h4>
@@ -439,9 +357,9 @@ function Dashboard({ user }) {
                                     <span 
                                       className="px-3 py-1 rounded-full text-xs font-medium"
                                       style={{ 
-                                        backgroundColor: colors.bg,
+                                        backgroundColor: 'rgba(255, 255, 255, 0.1)',
                                         color: colors.text,
-                                        border: `1px solid ${colors.border}60`
+                                        border: '1px solid rgba(255, 255, 255, 0.2)'
                                       }}
                                     >
                                       {topicData.expertiseLevel.charAt(0).toUpperCase() + topicData.expertiseLevel.slice(1).toLowerCase()}

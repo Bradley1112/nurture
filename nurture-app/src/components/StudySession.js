@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import PomodoroClock from "./PomodoroClock";
 import { getFirestore, doc, updateDoc, Timestamp } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
 import { studySessionAPI } from "../services/studySessionAPI";
@@ -999,26 +998,19 @@ const StudySession = () => {
       <div className="flex justify-between items-center p-4 border-b border-gray-600">
         <div className="flex items-center">
           <h1 className="text-xl font-bold">📚 {topicId.replace(/_/g, " ")}</h1>
-          <span className="ml-4 text-sm text-gray-300">
-            {expertiseLevel.charAt(0).toUpperCase() + expertiseLevel.slice(1).toLowerCase()} • Focus: {focusLevel}/5 • Stress: {stressLevel}/5
-          </span>
-          <span className="ml-4 text-sm" style={{ color: "#49B85B" }}>
-            {sessionData.simulationMode
-              ? "🔄 Simulation Mode"
-              : "🤖 AWS Strands Active"}
-          </span>
         </div>
         <div className="flex items-center gap-4">
-          <div className="text-sm text-gray-300">
-            Mode: <span style={{ color: "#49B85B" }}>{sessionMode}</span>
+          {/* Custom Timer Display */}
+          <div className="flex items-center bg-gray-800 rounded-lg px-4 py-2 border border-gray-600">
+            <div className="text-center">
+              <div className="text-2xl font-mono font-bold text-white">
+                {minutes < 10 ? `0${minutes}` : minutes}:{seconds < 10 ? `0${seconds}` : seconds}
+              </div>
+              <div className="text-xs text-gray-400 uppercase tracking-wide">
+                {mode} Time
+              </div>
+            </div>
           </div>
-          <PomodoroClock
-            minutes={minutes}
-            seconds={seconds}
-            mode={mode}
-            topic={topicId.replace(/_/g, " ")}
-            compact={true}
-          />
           <button
             onClick={handleSessionEnd}
             className="px-4 py-2 text-sm rounded-md hover:opacity-80"

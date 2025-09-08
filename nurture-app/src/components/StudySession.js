@@ -996,7 +996,14 @@ const StudySession = () => {
     >
       {/* Header */}
       <div className="flex justify-between items-center p-4 border-b border-gray-600">
-        <div className="flex items-center">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={handleSessionEnd}
+            className="px-3 py-2 text-sm rounded-md hover:opacity-80 flex items-center gap-2"
+            style={{ backgroundColor: "#49B85B" }}
+          >
+            ← End Session
+          </button>
           <h1 className="text-xl font-bold">📚 {topicId.replace(/_/g, " ")}</h1>
         </div>
         <div className="flex items-center gap-4">
@@ -1011,13 +1018,6 @@ const StudySession = () => {
               </div>
             </div>
           </div>
-          <button
-            onClick={handleSessionEnd}
-            className="px-4 py-2 text-sm rounded-md hover:opacity-80"
-            style={{ backgroundColor: "#49B85B" }}
-          >
-            End Session
-          </button>
         </div>
       </div>
 

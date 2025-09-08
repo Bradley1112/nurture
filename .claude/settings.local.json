@@ -26,7 +26,11 @@
       "Bash(aws:*)",
       "Bash(pkill:*)",
       "Bash(lsof:*)",
-      "Bash(npm run start:*)"
+      "Bash(npm run start:*)",
+      "Read(//Users/bradleygoh/Downloads/**)",
+      "Bash(rm:*)",
+      "Bash(timeout:*)",
+      "Bash(tree:*)"
     ],
     "deny": [],
     "ask": []

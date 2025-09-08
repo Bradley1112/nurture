@@ -6,13 +6,16 @@ This project was bootstrapped with [Create React App](https://github.com/faceboo
 
 1. Start the Backend (Flask + Strands AI):
 
-cd /Users/gabrielyap/nurture/backend
-BACKEND_PORT=5001 python app.py
+cd nurture/backend
+BACKEND_PORT=8000 python app.py
 
 2. Start the Frontend (React):
 
 cd /Users/gabrielyap/nurture/nurture-app
 npm start
+
+Alternative: Quickstart
+./start-dev.sh
 
 3. Open Your Browser:
 

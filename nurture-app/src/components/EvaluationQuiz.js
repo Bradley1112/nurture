@@ -83,6 +83,184 @@ const parseStructuredQuestionText = (fullText) => {
 };
 
 /**
+ * Format agent discussion messages for better UI/UX display
+ * Parses markdown and returns structured content matching backend style
+ */
+const formatAgentMessage = (message) => {
+  if (!message || typeof message !== 'string') {
+    return { type: 'simple', content: 'Processing...' };
+  }
+
+  // If message is too technical or contains debug info, simplify it
+  if (message.includes('toolUseId') || message.includes('Status.COMPLETED') || message.includes('anthropic')) {
+    return { type: 'simple', content: 'Processing assessment...' };
+  }
+
+  // Check if this looks like structured markdown content
+  const hasHeaders = /^#+\s.*\*\*/m.test(message);  // Headers with bold formatting
+  const hasBullets = /^[*-]\s/m.test(message);
+  const hasNumberedLists = /^\d+\.\s/m.test(message);
+  const hasStructuredContent = hasHeaders || hasBullets || hasNumberedLists;
+
+  if (!hasStructuredContent) {
+    // Simple message - just clean it up
+    let cleaned = message
+      .replace(/\*\*(.*?)\*\*/g, '$1')  // Remove bold formatting but keep content
+      .replace(/\{\{'.*?'\}\}/g, '')
+      .replace(/\{\{.*?\}\}/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+    
+    if (!cleaned || cleaned.length < 3) {
+      cleaned = 'Analyzing your responses...';
+    }
+    
+    return { type: 'simple', content: cleaned };
+  }
+
+  // Parse structured markdown content to match backend style
+  const sections = [];
+  const lines = message.split('\n');
+  let currentSection = null;
+
+  for (let line of lines) {
+    line = line.trim();
+    if (!line) continue;
+
+    // Header detection (## **Title**)
+    if (line.match(/^#+\s.*\*\*/)) {
+      if (currentSection) sections.push(currentSection);
+      // Extract title and clean it
+      const title = line
+        .replace(/^#+\s/, '')  // Remove ##
+        .replace(/\*\*/g, '')  // Remove ** formatting
+        .trim();
+      
+      currentSection = {
+        type: 'section',
+        title: title,
+        items: [],
+        isMainHeader: true
+      };
+    }
+    // Numbered list items (1. 2. 3.)
+    else if (line.match(/^\d+\.\s/)) {
+      const item = line.replace(/^\d+\.\s/, '').replace(/\*\*/g, '');
+      if (currentSection) {
+        currentSection.items.push({ type: 'numbered', content: item });
+      } else {
+        // Start a new section if we don't have one
+        currentSection = { type: 'section', title: 'Analysis', items: [{ type: 'numbered', content: item }], isMainHeader: false };
+      }
+    }
+    // Bullet point detection (* or -)
+    else if (line.match(/^[*-]\s/)) {
+      const item = line.replace(/^[*-]\s/, '').replace(/\*\*/g, '');
+      if (currentSection) {
+        currentSection.items.push({ type: 'bullet', content: item });
+      } else {
+        // Start a new section if we don't have one
+        currentSection = { type: 'section', title: 'Key Points', items: [{ type: 'bullet', content: item }], isMainHeader: false };
+      }
+    }
+    // Bold key-value pairs (**Key:** value)
+    else if (line.includes('**') && line.includes(':')) {
+      const cleaned = line.replace(/\*\*(.*?)\*\*/g, '$1');  // Keep content, remove formatting
+      if (currentSection) {
+        currentSection.items.push({ type: 'keyvalue', content: cleaned });
+      } else {
+        sections.push({ type: 'simple', content: cleaned });
+      }
+    }
+    // Regular content paragraphs
+    else if (line.length > 3) {
+      const cleaned = line.replace(/\*\*(.*?)\*\*/g, '$1');
+      if (currentSection && currentSection.items.length === 0) {
+        // This is likely the description for the current section
+        currentSection.description = cleaned;
+      } else if (currentSection) {
+        currentSection.items.push({ type: 'text', content: cleaned });
+      } else {
+        sections.push({ type: 'simple', content: cleaned });
+      }
+    }
+  }
+
+  // Add final section
+  if (currentSection) {
+    sections.push(currentSection);
+  }
+
+  // If no structured content found, fall back to simple formatting
+  if (sections.length === 0) {
+    const cleaned = message
+      .replace(/\*\*(.*?)\*\*/g, '$1')  // Remove bold but keep content
+      .replace(/^#+\s/gm, '')
+      .replace(/^[*-]\s/gm, '• ')
+      .replace(/^\d+\.\s/gm, '')
+      .replace(/\{\{'.*?'\}\}/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+    
+    return { type: 'simple', content: cleaned || 'Analyzing your responses...' };
+  }
+
+  return { type: 'structured', sections };
+};
+
+/**
+ * Process and clean questions array from backend with deduplication
+ */
+const processQuestions = (rawQuestions) => {
+  if (!Array.isArray(rawQuestions)) {
+    console.warn('processQuestions received non-array:', rawQuestions);
+    return [];
+  }
+
+  console.log(`Processing ${rawQuestions.length} raw questions`);
+  
+  // Clean and validate questions format
+  const cleanedQuestions = rawQuestions.map((q, index) => {
+    // Extract question text using robust parsing logic
+    let questionText = extractQuestionText(q.question, index);
+
+    return {
+      id: q.id || `question_${index}_${Date.now()}`,
+      topic: q.topic || 'Unknown',
+      subject: q.subject || 'General',
+      difficulty: q.difficulty || 'medium',
+      type: q.type || 'mcq',
+      question: questionText,
+      options: q.options || (q.type === 'mcq' ? ['Option A', 'Option B', 'Option C', 'Option D'] : null),
+      correct_answer: q.correct_answer || 'Option A',
+      explanation: q.explanation || 'Generated by AI agent pool system'
+    };
+  });
+
+  // Remove duplicates based on question text
+  const uniqueQuestions = [];
+  const seenQuestions = new Set();
+  
+  for (const question of cleanedQuestions) {
+    // Normalize question text for comparison
+    const normalizedText = question.question
+      .toLowerCase()
+      .replace(/[^\w\s]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+    
+    if (normalizedText && normalizedText.length > 5 && !seenQuestions.has(normalizedText)) {
+      seenQuestions.add(normalizedText);
+      uniqueQuestions.push(question);
+    }
+  }
+
+  console.log(`After deduplication: ${uniqueQuestions.length} unique questions`);
+  
+  return uniqueQuestions;
+};
+
+/**
  * Thin React UI Component for Evaluation Quiz
  * 
  * This component ONLY handles the user interface and experience.
@@ -180,25 +358,10 @@ function EvaluationQuiz({ user }) {
         // Immediate quiz data available (cached or fallback mode)
         const questions = response.quiz_data.questions || [];
         
-        // Clean and validate questions format - Improved robust parsing
-        const cleanedQuestions = questions.map((q, index) => {
-          // Extract question text using robust parsing logic
-          let questionText = extractQuestionText(q.question, index);
-
-          return {
-            id: q.id || `question_${index}`,
-            topic: q.topic || 'Unknown',
-            subject: q.subject || 'General',
-            difficulty: q.difficulty || 'medium',
-            type: q.type || 'mcq',
-            question: questionText,
-            options: q.options || (q.type === 'mcq' ? ['Option A', 'Option B', 'Option C', 'Option D'] : null),
-            correct_answer: q.correct_answer || 'Option A',
-            explanation: q.explanation || 'Generated by AI agent pool system'
-          };
-        });
+        // Process and deduplicate questions using centralized function
+        const processedQuestions = processQuestions(questions);
         
-        setQuestions(cleanedQuestions);
+        setQuestions(processedQuestions);
         setStartTime(Date.now());
         setStep('quiz');
         setGenerationProgress({ 
@@ -268,7 +431,8 @@ function EvaluationQuiz({ user }) {
             if (fallbackResponse.ok) {
               const fallbackData = await fallbackResponse.json();
               if (fallbackData.quiz_data) {
-                setQuestions(fallbackData.quiz_data.questions || []);
+                const processedFallbackQuestions = processQuestions(fallbackData.quiz_data.questions || []);
+                setQuestions(processedFallbackQuestions);
                 setLoading(false);
                 setError('AI generation timed out - using template questions');
                 return;
@@ -307,7 +471,13 @@ function EvaluationQuiz({ user }) {
             throw new Error('Quiz completed but no questions were generated');
           }
           
-          setQuestions(questions);
+          // Process and deduplicate questions using centralized function
+          const processedQuestions = processQuestions(questions);
+          if (processedQuestions.length === 0) {
+            throw new Error('Quiz completed but all questions were duplicates or invalid');
+          }
+          
+          setQuestions(processedQuestions);
           setStartTime(Date.now());
           setStep('quiz');
           setLoading(false);
@@ -431,45 +601,27 @@ function EvaluationQuiz({ user }) {
           {
             answers: quizResults.answers,
             topics: quizResults.topics,
-            timeLimitMinutes: 7
+            timeLimitMinutes: 10
           },
           // On chat message received
           (chatMessage) => {
             console.log('Received chat message:', chatMessage);
             if (chatMessage && typeof chatMessage === 'object') {
-              // Clean and filter agent messages for better display
+              // Filter and display meaningful agent messages
               let processedMessage = { ...chatMessage };
               let shouldDisplay = false;
               
               if (chatMessage.message) {
-                // Skip pure technical/debug messages
-                if (chatMessage.message.includes('toolUseId') ||
-                    chatMessage.message.includes('Message sent to node') ||
-                    chatMessage.message.includes('Status.COMPLETED') ||
-                    chatMessage.message.includes('Execution Time:') ||
-                    chatMessage.message.startsWith('✅ {')) {
-                  shouldDisplay = false;
+                // SHOW ALL MESSAGES - Simple approach to see everything from backend
+                shouldDisplay = true;
+                
+                // Optional: Clean up the most obvious noise for better readability
+                if (chatMessage.message.includes('toolUseId')) {
+                  processedMessage.message = '[Technical Status Update]';
+                } else if (chatMessage.message.includes('Status.COMPLETED')) {
+                  processedMessage.message = '[Process Completed]';
                 }
-                // Clean up and show agent analysis messages
-                else if (chatMessage.agent && chatMessage.agent !== 'System') {
-                  shouldDisplay = true;
-                  // Enhance specific agent messages with context
-                  if (chatMessage.message.includes('Starting') && chatMessage.message.includes('analysis')) {
-                    processedMessage.message = `Analyzing your quiz performance...`;
-                  } else if (chatMessage.message.includes('Analysis completed')) {
-                    processedMessage.message = `Completed analysis in ${chatMessage.message.match(/(\d+)s/)?.[1] || 'few'} seconds`;
-                  }
-                }
-                // Show important system messages with cleaning
-                else if (chatMessage.chat_type === 'system') {
-                  if (chatMessage.message.includes('Phase') || 
-                      chatMessage.message.includes('FINAL') ||
-                      chatMessage.message.includes('Smart-timed') ||
-                      chatMessage.message.includes('Setting up mesh') ||
-                      chatMessage.message.includes('Consensus')) {
-                    shouldDisplay = true;
-                  }
-                }
+                // Otherwise show the message as-is
               }
               
               if (shouldDisplay) {
@@ -814,6 +966,13 @@ function EvaluationQuiz({ user }) {
     const currentQuestion = questions[currentQuestionIndex];
     const progress = ((currentQuestionIndex + 1) / questions.length) * 100;
     
+    // Debug logging to verify questions are properly processed
+    console.log(`Displaying question ${currentQuestionIndex + 1}/${questions.length}:`, {
+      id: currentQuestion.id,
+      topic: currentQuestion.topic,
+      questionPreview: currentQuestion.question?.substring(0, 50) + '...'
+    });
+    
     return (
       <div className="auth-container">
         <div className="auth-card">
@@ -1004,33 +1163,229 @@ function EvaluationQuiz({ user }) {
               </div>
             )}
             
-            {agentDiscussion.filter(d => d && typeof d === 'object').map((discussion, index) => (
-              <div key={`discussion-${discussion.timestamp || index}`} style={{
-                padding: 'var(--space-3)',
-                marginBottom: 'var(--space-3)',
-                borderLeft: '3px solid var(--vibrant-leaf)',
-                background: 'rgba(73, 184, 91, 0.1)'
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', marginBottom: 'var(--space-2)' }}>
-                  <span style={{ fontSize: 'var(--text-lg)' }}>{discussion.icon || '🤖'}</span>
-                  <strong>{typeof discussion.agent === 'string' ? discussion.agent : 'Agent'}</strong>
-                  <span style={{ fontSize: 'var(--text-sm)', opacity: 0.7 }}>
-                    {discussion.round ? `Round ${discussion.round}` : discussion.phase || 'Processing'}
-                  </span>
-                  {discussion.time_remaining && (
-                    <span style={{ fontSize: 'var(--text-xs)', opacity: 0.5 }}>
-                      ({discussion.time_remaining}s remaining)
-                    </span>
-                  )}
+            {agentDiscussion.filter(d => d && typeof d === 'object').map((discussion, index) => {
+              // Debug: log the raw message to understand its structure
+              console.log('Raw discussion message:', discussion.message);
+              
+              // Extract the actual message content (handle different formats)
+              let messageContent = discussion.message;
+              if (typeof messageContent === 'object') {
+                // If message is an object, try to extract the text content
+                messageContent = messageContent.content || messageContent.text || JSON.stringify(messageContent);
+              }
+              if (typeof messageContent !== 'string') {
+                messageContent = String(messageContent);
+              }
+              
+              // Handle escaped newlines and quotes from JSON
+              messageContent = messageContent
+                .replace(/\\n/g, '\n')  // Convert \n to actual newlines
+                .replace(/\\"/g, '"')   // Convert \" to "
+                .replace(/\\'/g, "'")   // Convert \' to '
+                .trim();
+              
+              console.log('Cleaned message content:', messageContent);
+              
+              const formattedMessage = formatAgentMessage(messageContent);
+              console.log('Formatted message:', formattedMessage);
+              
+              // Skip messages that are just processing indicators or duplicates
+              if ((formattedMessage.type === 'simple' && 
+                  (formattedMessage.content === 'Processing assessment...' || 
+                   formattedMessage.content === 'Analyzing your responses...')) ||
+                  (formattedMessage.type === 'structured' && formattedMessage.sections.length === 0)) {
+                return null;
+              }
+              
+              // Determine agent type and styling
+              const agentType = typeof discussion.agent === 'string' ? discussion.agent.toLowerCase() : 'agent';
+              let agentIcon = '🤖';
+              let agentName = 'AI Agent';
+              let borderColor = 'var(--vibrant-leaf)';
+              let backgroundColor = 'rgba(73, 184, 91, 0.1)';
+              
+              if (agentType.includes('teacher') || agentType.includes('moe')) {
+                agentIcon = '👩‍🏫';
+                agentName = 'MOE Teacher';
+                borderColor = '#3b82f6';
+                backgroundColor = 'rgba(59, 130, 246, 0.1)';
+              } else if (agentType.includes('tutor')) {
+                agentIcon = '🎓';
+                agentName = 'Tutor';
+                borderColor = '#8b5cf6';
+                backgroundColor = 'rgba(139, 92, 246, 0.1)';
+              } else if (agentType.includes('student') || agentType.includes('perfect')) {
+                agentIcon = '🏆';
+                agentName = 'Perfect Student';
+                borderColor = '#f59e0b';
+                backgroundColor = 'rgba(245, 158, 11, 0.1)';
+              }
+              
+              return (
+                <div key={`discussion-${discussion.timestamp || index}`} style={{
+                  padding: 'var(--space-4)',
+                  marginBottom: 'var(--space-3)',
+                  borderLeft: `3px solid ${borderColor}`,
+                  background: backgroundColor,
+                  borderRadius: 'var(--radius-lg)',
+                  border: `1px solid ${borderColor}33`
+                }}>
+                  <div style={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    gap: 'var(--space-2)', 
+                    marginBottom: 'var(--space-2)' 
+                  }}>
+                    <span style={{ fontSize: 'var(--text-lg)' }}>{agentIcon}</span>
+                    <strong style={{ fontSize: 'var(--text-sm)' }}>{agentName}</strong>
+                    {discussion.round && (
+                      <span style={{ 
+                        fontSize: 'var(--text-xs)', 
+                        background: borderColor, 
+                        color: 'white', 
+                        padding: '2px 6px', 
+                        borderRadius: 'var(--radius-md)',
+                        fontWeight: 'bold'
+                      }}>
+                        Round {discussion.round}
+                      </span>
+                    )}
+                    {discussion.phase && !discussion.round && (
+                      <span style={{ fontSize: 'var(--text-xs)', opacity: 0.7 }}>
+                        {discussion.phase}
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ 
+                    fontSize: 'var(--text-sm)', 
+                    lineHeight: 1.5, 
+                    margin: 0, 
+                    opacity: 0.9
+                  }}>
+                    {formattedMessage.type === 'simple' ? (
+                      // Simple message display
+                      <div>{formattedMessage.content}</div>
+                    ) : (
+                      // Structured message display
+                      formattedMessage.sections.map((section, sectionIndex) => (
+                        <div key={sectionIndex} style={{ marginBottom: 'var(--space-3)' }}>
+                          {section.type === 'section' ? (
+                            <>
+                              {/* Section Header */}
+                              <div style={{ 
+                                fontWeight: 'bold', 
+                                marginBottom: 'var(--space-2)',
+                                fontSize: section.isMainHeader ? 'var(--text-base)' : 'var(--text-sm)',
+                                color: borderColor,
+                                borderBottom: section.isMainHeader ? `1px solid ${borderColor}33` : 'none',
+                                paddingBottom: section.isMainHeader ? 'var(--space-1)' : 0
+                              }}>
+                                {section.title}
+                              </div>
+                              
+                              {/* Section Description */}
+                              {section.description && (
+                                <div style={{ 
+                                  marginBottom: 'var(--space-2)', 
+                                  fontStyle: 'italic',
+                                  opacity: 0.8,
+                                  lineHeight: 1.4
+                                }}>
+                                  {section.description}
+                                </div>
+                              )}
+                              
+                              {/* Section Items */}
+                              {section.items.length > 0 && (
+                                <div style={{ paddingLeft: section.isMainHeader ? 'var(--space-2)' : 'var(--space-3)' }}>
+                                  {section.items.map((item, itemIndex) => {
+                                    // Handle different item types
+                                    if (typeof item === 'string') {
+                                      // Legacy simple string format
+                                      return (
+                                        <div key={itemIndex} style={{ 
+                                          marginBottom: 'var(--space-1)',
+                                          display: 'flex',
+                                          alignItems: 'flex-start'
+                                        }}>
+                                          <span style={{ marginRight: 'var(--space-2)', opacity: 0.6, fontSize: 'var(--text-xs)' }}>•</span>
+                                          <span>{item}</span>
+                                        </div>
+                                      );
+                                    }
+                                    
+                                    // New structured item format
+                                    const itemContent = item.content || item;
+                                    
+                                    if (item.type === 'numbered') {
+                                      return (
+                                        <div key={itemIndex} style={{ 
+                                          marginBottom: 'var(--space-1)',
+                                          display: 'flex',
+                                          alignItems: 'flex-start'
+                                        }}>
+                                          <span style={{ 
+                                            marginRight: 'var(--space-2)', 
+                                            opacity: 0.8, 
+                                            fontSize: 'var(--text-xs)',
+                                            fontWeight: 'bold',
+                                            minWidth: '18px'
+                                          }}>
+                                            {itemIndex + 1}.
+                                          </span>
+                                          <span>{itemContent}</span>
+                                        </div>
+                                      );
+                                    } else if (item.type === 'bullet') {
+                                      return (
+                                        <div key={itemIndex} style={{ 
+                                          marginBottom: 'var(--space-1)',
+                                          display: 'flex',
+                                          alignItems: 'flex-start'
+                                        }}>
+                                          <span style={{ marginRight: 'var(--space-2)', opacity: 0.6, fontSize: 'var(--text-xs)' }}>•</span>
+                                          <span>{itemContent}</span>
+                                        </div>
+                                      );
+                                    } else if (item.type === 'keyvalue') {
+                                      return (
+                                        <div key={itemIndex} style={{ 
+                                          marginBottom: 'var(--space-2)',
+                                          fontWeight: '500',
+                                          background: `${borderColor}11`,
+                                          padding: 'var(--space-1) var(--space-2)',
+                                          borderRadius: 'var(--radius-sm)',
+                                          border: `1px solid ${borderColor}33`
+                                        }}>
+                                          {itemContent}
+                                        </div>
+                                      );
+                                    } else {
+                                      // Default text format
+                                      return (
+                                        <div key={itemIndex} style={{ 
+                                          marginBottom: 'var(--space-2)',
+                                          lineHeight: 1.4
+                                        }}>
+                                          {itemContent}
+                                        </div>
+                                      );
+                                    }
+                                  })}
+                                </div>
+                              )}
+                            </>
+                          ) : (
+                            // Simple section
+                            <div>{section.content}</div>
+                          )}
+                        </div>
+                      ))
+                    )}
+                  </div>
                 </div>
-                <p style={{ margin: 0, opacity: 0.9 }}>
-                  {typeof discussion.message === 'string' 
-                    ? discussion.message.replace(/\{\{'.*?'\}\}/g, '').trim() // Clean up any template strings
-                    : 'Processing...'
-                  }
-                </p>
-              </div>
-            ))}
+              );
+            }).filter(Boolean)}
           </div>
           
           <div style={{ textAlign: 'center' }}>

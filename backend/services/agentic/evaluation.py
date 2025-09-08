@@ -55,7 +55,11 @@ class MeshAgenticEvaluationService:
     MOE Teacher ↔ Perfect Student ↔ Tutor (fully interconnected mesh network)
     """
     
-    def __init__(self):
+    def __init__(self, enable_streaming=False):
+        self.enable_streaming = enable_streaming
+        self.chat_log = []
+        self.start_time = None
+        
         self.agent_personas = {
             'moe_teacher': AgentPersona(
                 name="MOE Teacher",
@@ -116,6 +120,146 @@ class MeshAgenticEvaluationService:
         
         # Initialize mesh agent network
         self.setup_mesh_agents()
+    
+    def emit_meaningful_chat_message(self, agent: str, icon: str, message: str, phase: str, chat_type: str = "analysis"):
+        """Emit meaningful chat message for streaming - extracts actual insights"""
+        
+        # Clean up technical jargon from agent responses
+        cleaned_message = self.extract_meaningful_content(message)
+        
+        chat_message = {
+            'type': 'chat_message',
+            'chat': {
+                'agent': agent,
+                'icon': icon,
+                'message': cleaned_message,
+                'timestamp': datetime.now().isoformat(),
+                'chat_type': chat_type,
+                'phase': phase,
+                'raw_message': message  # Keep original for debugging
+            }
+        }
+        
+        if self.enable_streaming:
+            self.chat_log.append(chat_message)
+        return chat_message
+    
+    def extract_meaningful_content(self, raw_message) -> str:
+        """Extract meaningful insights from technical agent responses"""
+        
+        # Handle different input types - could be string or dict
+        if isinstance(raw_message, dict):
+            # If it's a dict, try to extract the message content
+            cleaned_message = raw_message.get('message', str(raw_message))
+        elif isinstance(raw_message, str):
+            cleaned_message = raw_message
+        else:
+            # Convert other types to string
+            cleaned_message = str(raw_message)
+        
+        # Ensure we have a string to work with
+        if not cleaned_message or not isinstance(cleaned_message, str):
+            return "Analysis in progress..."
+        
+        # Remove technical prefixes at the start
+        technical_prefixes = [
+            'URGENT ASSESSMENT - 30 SECOND LIMIT',
+            'RAPID EFFICIENCY ANALYSIS - 30 SECOND LIMIT', 
+            'QUICK GAP ANALYSIS - 30 SECOND LIMIT',
+            'RAPID PEER DISCUSSION - 40 SECOND LIMIT',
+            'FAST PEER EXCHANGE - 40 SECOND LIMIT',
+            'QUICK COLLABORATION - 40 SECOND LIMIT',
+            'FINAL CONSENSUS - 60 SECOND LIMIT'
+        ]
+        
+        for prefix in technical_prefixes:
+            if cleaned_message.startswith(prefix):
+                cleaned_message = cleaned_message[len(prefix):].strip()
+                break
+        
+        # Split into lines and process
+        lines = cleaned_message.split('\n')
+        meaningful_lines = []
+        
+        # Patterns to completely skip
+        skip_patterns = [
+            'toolUseId', 'Status.COMPLETED', 'Execution Time:', 
+            'Analysis completed in 0s', 'Message sent to node',
+            'budget:', '✅ {', 'Time pressure:'
+        ]
+        
+        # Process each line
+        in_meaningful_section = False
+        for line in lines:
+            line = line.strip()
+            
+            # Skip empty lines
+            if not line:
+                continue
+                
+            # Skip pure technical debug lines
+            if any(pattern in line for pattern in skip_patterns):
+                continue
+            
+            # Skip technical time constraint mentions
+            if any(phrase in line for phrase in ['30s limit', '40s limit', '60s limit', 'second limit']):
+                continue
+                
+            # Always include lines with clear educational value
+            educational_keywords = [
+                'student performance', 'learning objective', 'misconception', 
+                'syllabus', 'curriculum', 'O-Level', 'concept', 'understanding',
+                'knowledge gap', 'foundation', 'mastery', 'skill development',
+                'remediation', 'practice problem', 'study strategy', 
+                'academic strength', 'weakness', 'improvement area',
+                'problem-solving', 'mathematical concept', 'scientific principle'
+            ]
+            
+            if any(keyword in line.lower() for keyword in educational_keywords):
+                meaningful_lines.append(line)
+                in_meaningful_section = True
+                continue
+            
+            # Include assessment and analysis content
+            assessment_indicators = [
+                'assess', 'evaluat', 'analyz', 'identif', 'determin',
+                'observ', 'conclud', 'recommend', 'suggest', 'propos'
+            ]
+            
+            if any(indicator in line.lower() for indicator in assessment_indicators) and len(line) > 30:
+                meaningful_lines.append(line)
+                in_meaningful_section = True
+                continue
+            
+            # Include substantial content lines (avoid one-word responses)
+            if len(line) > 40 and not line.startswith('✅') and not line.startswith('🔄'):
+                # Check if it contains actual educational content vs pure technical
+                if any(char.isalpha() for char in line) and not line.lower().startswith('focus only on'):
+                    meaningful_lines.append(line)
+                    continue
+            
+            # Include bullet points and numbered lists if they contain substance
+            if (line.startswith('- ') or line.startswith('• ') or 
+                (line.startswith(tuple('123456789')) and '. ' in line)) and len(line) > 20:
+                meaningful_lines.append(line)
+                continue
+        
+        # If we got meaningful content, return it cleaned up
+        if meaningful_lines:
+            result = '\n'.join(meaningful_lines)
+            
+            # Final cleanup of any remaining time pressure mentions
+            result = result.replace('Time pressure: 30s limit.', '').replace('30s time limit.', '')
+            result = result.replace('Concise, direct recommendations only.', '')
+            result = result.replace('Be direct and actionable.', '')
+            
+            # Clean up extra whitespace
+            result = '\n'.join(line.strip() for line in result.split('\n') if line.strip())
+            
+            return result if result.strip() else raw_message
+        
+        # If no meaningful content found, return original (might be already clean)
+        return raw_message
     
     def setup_mesh_agents(self):
         """Setup mesh network where all agents can communicate directly with each other"""
@@ -260,21 +404,29 @@ class MeshAgenticEvaluationService:
         
         # MOE Teacher Initial Assessment
         moe_prompt = f"""
-        As an experienced MOE teacher, provide your initial assessment of this Singapore O-Level performance:
+        As an experienced MOE teacher who knows the Singapore O-Level syllabus inside out, please analyze this student's performance:
         
-        Performance Metrics: {json.dumps(metrics, indent=2)}
-        Topics Covered: {', '.join(topics)}
+        Performance Data: {json.dumps(metrics, indent=2)}
+        Topics: {', '.join(topics)}
         
-        Focus on:
-        - Syllabus alignment and curriculum standards
-        - Learning objective achievement
-        - Common misconceptions identified
-        - Pedagogical assessment of understanding levels
+        Share your educational insights on:
+        - How well this student meets Singapore O-Level curriculum standards
+        - Which learning objectives they've achieved vs. still need work
+        - Any common misconceptions you notice in their response patterns  
+        - Your pedagogical assessment of their understanding levels
         
-        Prepare to engage in direct discussions with Perfect Student and Tutor agents about this evaluation.
+        Please provide a thoughtful, professional assessment as you would discuss with fellow educators about a student's progress.
         """
         
         moe_result = await self.moe_teacher_agent.invoke_async(moe_prompt)
+        
+        # Emit meaningful chat message for streaming
+        if self.enable_streaming:
+            self.emit_meaningful_chat_message(
+                'MOE Teacher', '👩‍🏫', moe_result.message, 
+                'initial_assessment', 'analysis'
+            )
+        
         assessments.append({
             'agent': 'MOE Teacher',
             'icon': '👩‍🏫',
@@ -285,20 +437,28 @@ class MeshAgenticEvaluationService:
         
         # Perfect Student Initial Assessment
         student_prompt = f"""
-        As a top-performing student who achieves perfect scores, analyze this performance:
+        As a top-performing O-Level student who consistently achieves perfect scores, share your perspective on this performance:
         
-        Performance Metrics: {json.dumps(metrics, indent=2)}
+        Performance Data: {json.dumps(metrics, indent=2)}
         
-        Focus on:
-        - Problem-solving efficiency and speed
-        - Method optimization opportunities
-        - Time management effectiveness
-        - Strategic approach to different difficulty levels
+        From your experience as a high-achiever, please comment on:
+        - How efficiently this student approaches problems compared to optimal strategies
+        - What method improvements could boost their performance
+        - Whether their time management matches what works for top scorers
+        - How they should tackle different difficulty levels strategically
         
-        Prepare to discuss with MOE Teacher and Tutor agents about optimization vs. understanding.
+        Share your insights as a peer who understands what it takes to excel at O-Levels.
         """
         
         student_result = await self.perfect_student_agent.invoke_async(student_prompt)
+        
+        # Emit meaningful chat message for streaming
+        if self.enable_streaming:
+            self.emit_meaningful_chat_message(
+                'Perfect Student', '🏆', student_result.message, 
+                'initial_assessment', 'analysis'
+            )
+        
         assessments.append({
             'agent': 'Perfect Student',
             'icon': '🏆',
@@ -309,21 +469,29 @@ class MeshAgenticEvaluationService:
         
         # Tutor Initial Assessment
         tutor_prompt = f"""
-        As a patient private tutor focused on building foundations, identify gaps and strategies:
+        As a dedicated private tutor who specializes in building strong foundations, please evaluate this student's learning needs:
         
-        Performance Metrics: {json.dumps(metrics, indent=2)}
+        Performance Data: {json.dumps(metrics, indent=2)}
         Error Patterns: {json.dumps(metrics.get('error_patterns', []), indent=2)}
         
-        Focus on:
-        - Specific foundational knowledge gaps
-        - Targeted remediation strategies
-        - Building conceptual understanding
-        - Individual learning needs assessment
+        Drawing from your tutoring experience, please share:
+        - What specific knowledge gaps you notice in their foundation
+        - Which remediation strategies would be most effective for this student
+        - How to build deeper conceptual understanding in their weak areas
+        - What individualized approach would best serve their learning style
         
-        Prepare to discuss with MOE Teacher and Perfect Student about balancing foundation vs. performance.
+        Provide your caring, professional assessment as you would when discussing a student's progress with their parents.
         """
         
         tutor_result = await self.tutor_agent.invoke_async(tutor_prompt)
+        
+        # Emit meaningful chat message for streaming
+        if self.enable_streaming:
+            self.emit_meaningful_chat_message(
+                'Tutor', '🎓', tutor_result.message, 
+                'initial_assessment', 'analysis'
+            )
+        
         assessments.append({
             'agent': 'Tutor',
             'icon': '🎓',
@@ -363,6 +531,14 @@ class MeshAgenticEvaluationService:
         """
         
         moe_to_student = await self.moe_teacher_agent.invoke_async(moe_to_student_prompt)
+        
+        # Emit meaningful chat message for streaming
+        if self.enable_streaming:
+            self.emit_meaningful_chat_message(
+                'MOE Teacher → Perfect Student', '👩‍🏫↔️🏆', moe_to_student.message, 
+                'peer_discussion', 'dialogue'
+            )
+        
         peer_discussions.append({
             'agent': 'MOE Teacher → Perfect Student',
             'icon': '👩‍🏫↔️🏆',
@@ -391,6 +567,14 @@ class MeshAgenticEvaluationService:
         """
         
         student_to_tutor = await self.perfect_student_agent.invoke_async(student_to_tutor_prompt)
+        
+        # Emit meaningful chat message for streaming
+        if self.enable_streaming:
+            self.emit_meaningful_chat_message(
+                'Perfect Student → Tutor', '🏆↔️🎓', student_to_tutor.message, 
+                'peer_discussion', 'dialogue'
+            )
+        
         peer_discussions.append({
             'agent': 'Perfect Student → Tutor',
             'icon': '🏆↔️🎓',
@@ -419,6 +603,14 @@ class MeshAgenticEvaluationService:
         """
         
         tutor_to_moe = await self.tutor_agent.invoke_async(tutor_to_moe_prompt)
+        
+        # Emit meaningful chat message for streaming
+        if self.enable_streaming:
+            self.emit_meaningful_chat_message(
+                'Tutor → MOE Teacher', '🎓↔️👩‍🏫', tutor_to_moe.message, 
+                'peer_discussion', 'dialogue'
+            )
+        
         peer_discussions.append({
             'agent': 'Tutor → MOE Teacher',
             'icon': '🎓↔️👩‍🏫',
@@ -479,6 +671,13 @@ class MeshAgenticEvaluationService:
             """
             
             agent_consensus = await agent.invoke_async(agent_consensus_prompt)
+            
+            # Emit meaningful chat message for streaming
+            if self.enable_streaming:
+                self.emit_meaningful_chat_message(
+                    f"{persona.name} (Final Consensus)", '🕸️' + persona.icon, 
+                    agent_consensus.message, 'mesh_consensus', 'consensus'
+                )
             
             consensus_results.append({
                 'agent': f"{persona.name} (Final Consensus)",
@@ -919,6 +1118,207 @@ class MeshAgenticEvaluationService:
         except Exception as e:
             logger.error(f"Mesh evaluation failed: {str(e)}")
             raise
+    
+    def stream_evaluation_with_meaningful_chat(self, quiz_results: Dict[str, Any]):
+        """Stream the mesh evaluation with meaningful agent conversations using improved async handling"""
+        import time
+        import asyncio
+        from concurrent.futures import ThreadPoolExecutor
+        from typing import Generator
+        
+        self.start_time = time.time()
+        self.enable_streaming = True
+        
+        try:
+            # Convert answers to QuizAnswer objects
+            answers = []
+            for answer_data in quiz_results.get('answers', []):
+                answers.append(QuizAnswer(
+                    topic=answer_data.get('topic', 'Unknown'),
+                    difficulty=answer_data.get('difficulty', 'medium'),
+                    is_correct=answer_data.get('isCorrect', False),
+                    time_spent=answer_data.get('timeSpent', 0),
+                    question_id=answer_data.get('questionId', ''),
+                    answer_given=str(answer_data.get('userAnswer', '')),
+                    correct_answer=str(answer_data.get('correctAnswer', ''))
+                ))
+            
+            topics = quiz_results.get('topics', [])
+            
+            # Emit initial status
+            initial_msg = {
+                'type': 'chat_message',
+                'chat': {
+                    'agent': 'System',
+                    'icon': '🕸️',
+                    'message': '🚀 Initializing Mesh Network with 3 Educational AI Agents...',
+                    'timestamp': datetime.now().isoformat(),
+                    'chat_type': 'system',
+                    'phase': 'initialization'
+                }
+            }
+            yield f"data: {json.dumps(initial_msg)}\n\n"
+            
+            # Calculate metrics
+            metrics = self.calculate_performance_metrics(answers)
+            
+            phase_msg = {
+                'type': 'chat_message',
+                'chat': {
+                    'agent': 'System',
+                    'icon': '📊',
+                    'message': f'📈 Analyzing {len(answers)} quiz responses across {len(topics)} topics...',
+                    'timestamp': datetime.now().isoformat(),
+                    'chat_type': 'system',
+                    'phase': 'initialization'
+                }
+            }
+            yield f"data: {json.dumps(phase_msg)}\n\n"
+            
+            # Use event loop in current thread for better message capture
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            
+            try:
+                # Run the complete evaluation asynchronously
+                async def run_evaluation():
+                    try:
+                        # Phase 1: Individual assessments
+                        phase1_msg = {
+                            'type': 'chat_message',
+                            'chat': {
+                                'agent': 'System',
+                                'icon': '🎯',
+                                'message': '📋 Phase 1: Individual Agent Assessments',
+                                'timestamp': datetime.now().isoformat(),
+                                'chat_type': 'system',
+                                'phase': 'phase_1_start'
+                            }
+                        }
+                        self.chat_log.append(phase1_msg)
+                        
+                        assessments = await self.gather_initial_assessments(metrics, topics)
+                        
+                        # Phase 2: Peer discussions
+                        phase2_msg = {
+                            'type': 'chat_message',
+                            'chat': {
+                                'agent': 'System',
+                                'icon': '🤝',
+                                'message': '💬 Phase 2: Agent Peer Discussions',
+                                'timestamp': datetime.now().isoformat(),
+                                'chat_type': 'system',
+                                'phase': 'phase_2_start'
+                            }
+                        }
+                        self.chat_log.append(phase2_msg)
+                        
+                        peer_discussions = await self.conduct_peer_discussions(metrics, assessments)
+                        
+                        # Phase 3: Final consensus
+                        phase3_msg = {
+                            'type': 'chat_message',
+                            'chat': {
+                                'agent': 'System',
+                                'icon': '🧠',
+                                'message': '🎯 Phase 3: Collaborative Consensus',
+                                'timestamp': datetime.now().isoformat(),
+                                'chat_type': 'system',
+                                'phase': 'phase_3_start'
+                            }
+                        }
+                        self.chat_log.append(phase3_msg)
+                        
+                        all_discussions = assessments + peer_discussions
+                        consensus_discussion = await self.build_mesh_consensus(metrics, all_discussions)
+                        
+                        # Generate final assessment
+                        final_discussion = assessments + peer_discussions + consensus_discussion
+                        final_assessment = self.determine_expertise_level(final_discussion, metrics, topics)
+                        
+                        return {
+                            'evaluation': final_assessment,
+                            'mesh_discussion': final_discussion,
+                            'meaningful_chat_log': self.chat_log,
+                            'total_time': time.time() - self.start_time
+                        }
+                        
+                    except Exception as e:
+                        error_msg = {
+                            'type': 'chat_message',
+                            'chat': {
+                                'agent': 'System',
+                                'icon': '❌',
+                                'message': f'Evaluation error: {str(e)}',
+                                'timestamp': datetime.now().isoformat(),
+                                'chat_type': 'system',
+                                'phase': 'error'
+                            }
+                        }
+                        self.chat_log.append(error_msg)
+                        return {'error': str(e)}
+                
+                # Run the evaluation and stream messages as they're generated
+                import threading
+                
+                result_container = {}
+                message_index = 0
+                
+                def run_evaluation_thread():
+                    result_container['result'] = loop.run_until_complete(run_evaluation())
+                
+                eval_thread = threading.Thread(target=run_evaluation_thread)
+                eval_thread.start()
+                
+                # Stream messages as they appear in chat_log
+                while eval_thread.is_alive() or message_index < len(self.chat_log):
+                    # Stream any new messages
+                    while message_index < len(self.chat_log):
+                        message = self.chat_log[message_index]
+                        yield f"data: {json.dumps(message)}\n\n"
+                        message_index += 1
+                    
+                    time.sleep(0.1)  # Small delay to avoid busy waiting
+                
+                eval_thread.join(timeout=30)
+                
+                # Send final result
+                if 'result' in result_container:
+                    final_result = result_container['result']
+                    if 'error' not in final_result:
+                        # Format the final assessment for frontend
+                        formatted_results = self.format_evaluation_results({
+                            'metrics': metrics,
+                            'mesh_discussion': final_result['mesh_discussion'],
+                            'final_assessment': final_result['evaluation']
+                        })
+                        
+                        completion_msg = {
+                            'type': 'evaluation_complete',
+                            'evaluation': formatted_results,
+                            'total_time': final_result['total_time']
+                        }
+                        yield f"data: {json.dumps(completion_msg)}\n\n"
+                    else:
+                        error_msg = {'type': 'error', 'error': final_result['error']}
+                        yield f"data: {json.dumps(error_msg)}\n\n"
+                
+            finally:
+                loop.close()
+            
+        except Exception as e:
+            error_msg = {
+                'type': 'chat_message',
+                'chat': {
+                    'agent': 'System',
+                    'icon': '❌',
+                    'message': f'Stream error: {str(e)}',
+                    'timestamp': datetime.now().isoformat(),
+                    'chat_type': 'system',
+                    'phase': 'error'
+                }
+            }
+            yield f"data: {json.dumps(error_msg)}\n\n"
     
 
     def format_evaluation_results(self, evaluation_results: Dict[str, Any]) -> Dict[str, Any]:

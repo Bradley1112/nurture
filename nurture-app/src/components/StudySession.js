@@ -1035,22 +1035,26 @@ const StudySession = () => {
           {messages.map((message) => (
             <div key={message.id}>
               {message.sender === "student" ? (
-                /* User message - compact bubble on right like reference */
-                <div className="flex justify-end px-6 py-3">
-                  <div 
-                    className="max-w-md px-4 py-3 rounded-3xl text-sm leading-relaxed"
+                /* User message - content-sized bubble right-aligned */
+                <div className="w-full px-6" style={{ display: "flex", justifyContent: "flex-end", marginTop: "12px", marginBottom: "12px" }}>
+                  <span 
+                    className="text-sm leading-relaxed"
                     style={{
                       backgroundColor: "#e5e7eb",
                       color: "#1f2937",
-                      borderBottomRightRadius: "8px"
+                      borderRadius: "20px",
+                      borderTopRightRadius: "8px",
+                      maxWidth: "50%",
+                      display: "inline-block",
+                      wordWrap: "break-word",
+                      whiteSpace: "pre-wrap",
+                      padding: "12px 16px"
                     }}
                   >
-                    <div className="whitespace-pre-wrap break-words">
-                      {typeof message.content === "string"
-                        ? message.content
-                        : String(message.content)}
-                    </div>
-                  </div>
+                    {typeof message.content === "string"
+                      ? message.content
+                      : String(message.content)}
+                  </span>
                 </div>
               ) : (
                 /* Agent message - full width like reference */

@@ -1058,11 +1058,10 @@ const StudySession = () => {
                 </div>
               ) : (
                 /* Agent message - full width like reference */
-                <div className="w-full py-6 border-b border-gray-700" style={{ backgroundColor: "rgba(255, 255, 255, 0.02)" }}>
+                <div className="w-full py-6">
                   <div className="max-w-4xl">
                     <div className="flex items-start">
-                      <div className="w-8 h-8 rounded-full flex items-center justify-center mr-4 mt-1"
-                           style={{ backgroundColor: "rgba(75, 85, 99, 0.3)" }}>
+                      <div className="w-8 h-8 rounded-full flex items-center justify-center mr-4 mt-1">
                         <span className="text-base">
                           {agentProfiles[message.sender]?.icon || "🤖"}
                         </span>
@@ -1107,11 +1106,10 @@ const StudySession = () => {
 
           {/* Thinking indicator */}
           {isOrchestratorThinking && (
-            <div className="w-full py-6 border-b border-gray-700" style={{ backgroundColor: "rgba(255, 255, 255, 0.02)" }}>
+            <div className="w-full py-6">
               <div className="max-w-4xl">
                 <div className="flex items-start">
-                  <div className="w-8 h-8 rounded-full flex items-center justify-center mr-4 mt-1"
-                       style={{ backgroundColor: "rgba(75, 85, 99, 0.3)" }}>
+                  <div className="w-8 h-8 rounded-full flex items-center justify-center mr-4 mt-1">
                     <span className="text-base">
                       {agentProfiles.orchestrator.icon}
                     </span>

@@ -118,16 +118,14 @@ const StudySessionSetup = () => {
   return (
     <div
       className="min-h-screen flex flex-col items-center justify-center"
-      style={{ 
-        backgroundColor: "#1A241B", 
+      style={{
+        backgroundColor: "#1A241B",
         color: "#F5F5F5",
         paddingLeft: "20px",
-        paddingRight: "20px"
+        paddingRight: "20px",
       }}
     >
-      <div
-        className="w-full max-w-2xl p-8 space-y-8 rounded-lg"
-      >
+      <div className="w-full max-w-2xl p-8 space-y-10 rounded-lg">
         <h1 className="text-3xl font-bold text-center">
           Prepare Your Study Session
         </h1>
@@ -175,6 +173,9 @@ const StudySessionSetup = () => {
             ))}
           </div>
         </div>
+        <div>
+          <text></text>
+        </div>
 
         {/* Focus Level */}
         <div className="space-y-2">
@@ -182,7 +183,6 @@ const StudySessionSetup = () => {
             Focus Level: {focusLevel}
           </label>
           <div className="flex items-center space-x-4">
-            <span className="text-xs">Not Focused</span>
             <input
               id="focus"
               type="range"
@@ -193,7 +193,6 @@ const StudySessionSetup = () => {
               className="flex-1 h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer"
               style={{ maxWidth: "30%" }}
             />
-            <span className="text-xs">Very Focused</span>
           </div>
         </div>
 
@@ -203,7 +202,6 @@ const StudySessionSetup = () => {
             Stress Level: {stressLevel}
           </label>
           <div className="flex items-center space-x-4">
-            <span className="text-xs">Calm</span>
             <input
               id="stress"
               type="range"
@@ -214,7 +212,6 @@ const StudySessionSetup = () => {
               className="flex-1 h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer"
               style={{ maxWidth: "30%" }}
             />
-            <span className="text-xs">Very Stressed</span>
           </div>
         </div>
 

@@ -1,164 +1,235 @@
-
-import React, { useState, useEffect } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
-import { getFirestore, doc, getDoc } from 'firebase/firestore';
-import { getAuth } from 'firebase/auth';
-import { addStudySession } from '../firebase/study'; // We will create this function
+import React, { useState, useEffect } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
+import { getFirestore, doc, getDoc } from "firebase/firestore";
+import { getAuth } from "firebase/auth";
+import { addStudySession } from "../firebase/study"; // We will create this function
 
 const StudySessionSetup = () => {
-    const [duration, setDuration] = useState(60);
-    const [focusLevel, setFocusLevel] = useState(3);
-    const [stressLevel, setStressLevel] = useState(3);
-    const [expertise, setExpertise] = useState('');
-    const [error, setError] = useState('');
-    const location = useLocation();
-    const navigate = useNavigate();
-    const { topicId, subjectId } = location.state || {};
+  const [duration, setDuration] = useState(60);
+  const [focusLevel, setFocusLevel] = useState(3);
+  const [stressLevel, setStressLevel] = useState(3);
+  const [expertise, setExpertise] = useState("");
+  const [error, setError] = useState("");
+  const location = useLocation();
+  const navigate = useNavigate();
+  const { topicId, subjectId } = location.state || {};
 
-    const auth = getAuth();
-    const user = auth.currentUser;
+  const auth = getAuth();
+  const user = auth.currentUser;
 
-    useEffect(() => {
-        const fetchExpertise = async () => {
-            if (user && topicId) {
-                const db = getFirestore();
-                // Path according to README: users/{userId}/subjects/{subjectId}/topics/{topicId}
-                const topicRef = doc(db, 'users', user.uid, 'subjects', subjectId, 'topics', topicId);
-                const topicSnap = await getDoc(topicRef);
-                if (topicSnap.exists()) {
-                    setExpertise(topicSnap.data().expertiseLevel);
-                } else {
-                    setExpertise('Beginner'); // Default if not evaluated
-                }
-            }
-        };
-        fetchExpertise();
-    }, [user, topicId, subjectId]);
-
-    const expertiseColorMapping = {
-        'Beginner': 'text-red-500',
-        'Apprentice': 'text-yellow-500',
-        'Pro': 'text-green-500',
-        'Grand Master': 'text-blue-500',
+  useEffect(() => {
+    const fetchExpertise = async () => {
+      if (user && topicId) {
+        const db = getFirestore();
+        // Path according to README: users/{userId}/subjects/{subjectId}/topics/{topicId}
+        const topicRef = doc(
+          db,
+          "users",
+          user.uid,
+          "subjects",
+          subjectId,
+          "topics",
+          topicId
+        );
+        const topicSnap = await getDoc(topicRef);
+        if (topicSnap.exists()) {
+          setExpertise(topicSnap.data().expertiseLevel);
+        } else {
+          setExpertise("Beginner"); // Default if not evaluated
+        }
+      }
     };
+    fetchExpertise();
+  }, [user, topicId, subjectId]);
 
-    const handleStartSession = async () => {
-        if (!user) {
-            setError('You must be logged in to start a session.');
-            return;
-        }
-        if (!topicId || !subjectId) {
-            setError('Topic or subject not selected.');
-            return;
-        }
+  const expertiseColorMapping = {
+    Beginner: "text-red-500",
+    Apprentice: "text-yellow-500",
+    Pro: "text-green-500",
+    "Grand Master": "text-blue-500",
+  };
 
-        // Simple logic to adjust session based on user input
-        // Placeholder for more complex AI-driven logic
-        let sessionMinutes = duration;
-        if (stressLevel > 3) {
-            sessionMinutes *= 0.8; // Reduce time if stressed
-        }
-        if (focusLevel < 3) {
-            sessionMinutes *= 0.9; // Reduce time if not focused
-        }
-        const studyTime = Math.round(sessionMinutes * 0.75); // e.g., 45 mins study
-        const breakTime = Math.round(sessionMinutes * 0.25); // e.g., 15 mins break
-
-        try {
-            const sessionData = {
-                subjectId,
-                topicId,
-                requestedDuration: duration,
-                actualDuration: Math.round(sessionMinutes),
-                focusLevel,
-                stressLevel,
-                expertise,
-                // Per README: determine intensity, method, content coverage
-                // This is a placeholder for the agentic part
-                intensity: stressLevel > 3 ? 'low' : 'high',
-                studyMethod: 'pomodoro',
-                contentToCover: 'Placeholder: AI will determine this.',
-            };
-
-            const sessionId = await addStudySession(user.uid, sessionData);
-            
-            navigate('/study-session', {
-                state: {
-                    studyTime: studyTime,
-                    breakTime: breakTime,
-                    sessionId: sessionId,
-                    topicId: topicId,
-                    subjectId: subjectId,
-                    focusLevel: focusLevel,
-                    stressLevel: stressLevel,
-                    expertiseLevel: expertise
-                }
-            });
-
-        } catch (e) {
-            console.error("Error starting study session:", e);
-            setError('Failed to start study session. Please try again.');
-        }
-    };
-
-    if (!topicId) {
-        return <div className="text-center text-red-500">Error: No topic selected. Please go back to the dashboard.</div>;
+  const handleStartSession = async () => {
+    if (!user) {
+      setError("You must be logged in to start a session.");
+      return;
+    }
+    if (!topicId || !subjectId) {
+      setError("Topic or subject not selected.");
+      return;
     }
 
+    // Simple logic to adjust session based on user input
+    // Placeholder for more complex AI-driven logic
+    let sessionMinutes = duration;
+    if (stressLevel > 3) {
+      sessionMinutes *= 0.8; // Reduce time if stressed
+    }
+    if (focusLevel < 3) {
+      sessionMinutes *= 0.9; // Reduce time if not focused
+    }
+    const studyTime = Math.round(sessionMinutes * 0.75); // e.g., 45 mins study
+    const breakTime = Math.round(sessionMinutes * 0.25); // e.g., 15 mins break
+
+    try {
+      const sessionData = {
+        subjectId,
+        topicId,
+        requestedDuration: duration,
+        actualDuration: Math.round(sessionMinutes),
+        focusLevel,
+        stressLevel,
+        expertise,
+        // Per README: determine intensity, method, content coverage
+        // This is a placeholder for the agentic part
+        intensity: stressLevel > 3 ? "low" : "high",
+        studyMethod: "pomodoro",
+        contentToCover: "Placeholder: AI will determine this.",
+      };
+
+      const sessionId = await addStudySession(user.uid, sessionData);
+
+      navigate("/study-session", {
+        state: {
+          studyTime: studyTime,
+          breakTime: breakTime,
+          sessionId: sessionId,
+          topicId: topicId,
+          subjectId: subjectId,
+          focusLevel: focusLevel,
+          stressLevel: stressLevel,
+          expertiseLevel: expertise,
+        },
+      });
+    } catch (e) {
+      console.error("Error starting study session:", e);
+      setError("Failed to start study session. Please try again.");
+    }
+  };
+
+  if (!topicId) {
     return (
-        <div className="min-h-screen flex flex-col items-center justify-center" style={{ backgroundColor: '#1A241B', color: '#F5F5F5' }}>
-            <div className="w-full max-w-2xl p-8 space-y-8 bg-gray-800 rounded-lg shadow-lg" style={{ backgroundColor: '#386641' }}>
-                <h1 className="text-3xl font-bold text-center">Prepare Your Study Session</h1>
-                
-                <div className="text-center text-xl">
-                    <p>Topic: <span className="font-semibold">{topicId.replace(/_/g, ' ')}</span></p>
-                    <p>Your Expertise: <span className={`font-bold ${expertiseColorMapping[expertise] || 'text-gray-300'}`}>{expertise || 'Loading...'}</span></p>
-                </div>
-
-                {/* Duration Selection */}
-                <div className="space-y-2">
-                    <label className="text-lg">How much time do you have?</label>
-                    <div className="flex justify-around">
-                        {[30, 60, 120].map(d => (
-                            <button key={d} onClick={() => setDuration(d)} className={`px-4 py-2 rounded-md ${duration === d ? 'bg-green-600' : 'bg-gray-700'} hover:bg-green-700`}>
-                                {d} mins
-                            </button>
-                        ))}
-                    </div>
-                </div>
-
-                {/* Focus Level */}
-                <div className="space-y-2">
-                    <label htmlFor="focus" className="text-lg">Focus Level: {focusLevel}</label>
-                    <div className="flex items-center space-x-4">
-                        <span className="text-xs">Not Focused</span>
-                        <input id="focus" type="range" min="1" max="5" value={focusLevel} onChange={(e) => setFocusLevel(Number(e.target.value))} className="flex-1 h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer" style={{ maxWidth: '30%' }} />
-                        <span className="text-xs">Very Focused</span>
-                    </div>
-                </div>
-
-                {/* Stress Level */}
-                <div className="space-y-2">
-                    <label htmlFor="stress" className="text-lg">Stress Level: {stressLevel}</label>
-                    <div className="flex items-center space-x-4">
-                        <span className="text-xs">Calm</span>
-                        <input id="stress" type="range" min="1" max="5" value={stressLevel} onChange={(e) => setStressLevel(Number(e.target.value))} className="flex-1 h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer" style={{ maxWidth: '30%' }} />
-                        <span className="text-xs">Very Stressed</span>
-                    </div>
-                </div>
-
-                {error && <p className="text-red-500 text-center">{error}</p>}
-
-                <button
-                    onClick={handleStartSession}
-                    className="w-full py-3 mt-6 font-semibold rounded-md"
-                    style={{ backgroundColor: '#49B85B' }}
-                >
-                    Start Session
-                </button>
-            </div>
-        </div>
+      <div className="text-center text-red-500">
+        Error: No topic selected. Please go back to the dashboard.
+      </div>
     );
+  }
+
+  return (
+    <div
+      className="min-h-screen flex flex-col items-center justify-center"
+      style={{ 
+        backgroundColor: "#1A241B", 
+        color: "#F5F5F5",
+        paddingLeft: "20px",
+        paddingRight: "20px"
+      }}
+    >
+      <div
+        className="w-full max-w-2xl p-8 space-y-8 rounded-lg"
+      >
+        <h1 className="text-3xl font-bold text-center">
+          Prepare Your Study Session
+        </h1>
+
+        <div className="text-center text-xl">
+          <p>
+            Topic:{" "}
+            <span className="font-semibold">
+              {topicId
+                .replace(/_/g, " ")
+                .split(" ")
+                .map((word) => {
+                  return word.charAt(0).toUpperCase() + word.slice(1);
+                })
+                .join(" ")}
+            </span>
+          </p>
+
+          <p>
+            Your Expertise:{" "}
+            <span
+              className={`font-bold ${
+                expertiseColorMapping[expertise] || "text-gray-300"
+              }`}
+            >
+              {expertise || "Loading..."}
+            </span>
+          </p>
+        </div>
+
+        {/* Duration Selection */}
+        <div className="space-y-2">
+          <label className="text-lg">How much time do you have?</label>
+          <div className="flex justify-around">
+            {[30, 60, 120].map((d) => (
+              <button
+                key={d}
+                onClick={() => setDuration(d)}
+                className={`px-4 py-2 rounded-md ${
+                  duration === d ? "bg-green-600" : "bg-gray-700"
+                } hover:bg-green-700`}
+              >
+                {d} mins
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Focus Level */}
+        <div className="space-y-2">
+          <label htmlFor="focus" className="text-lg">
+            Focus Level: {focusLevel}
+          </label>
+          <div className="flex items-center space-x-4">
+            <span className="text-xs">Not Focused</span>
+            <input
+              id="focus"
+              type="range"
+              min="1"
+              max="5"
+              value={focusLevel}
+              onChange={(e) => setFocusLevel(Number(e.target.value))}
+              className="flex-1 h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer"
+              style={{ maxWidth: "30%" }}
+            />
+            <span className="text-xs">Very Focused</span>
+          </div>
+        </div>
+
+        {/* Stress Level */}
+        <div className="space-y-2">
+          <label htmlFor="stress" className="text-lg">
+            Stress Level: {stressLevel}
+          </label>
+          <div className="flex items-center space-x-4">
+            <span className="text-xs">Calm</span>
+            <input
+              id="stress"
+              type="range"
+              min="1"
+              max="5"
+              value={stressLevel}
+              onChange={(e) => setStressLevel(Number(e.target.value))}
+              className="flex-1 h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer"
+              style={{ maxWidth: "30%" }}
+            />
+            <span className="text-xs">Very Stressed</span>
+          </div>
+        </div>
+
+        {error && <p className="text-red-500 text-center">{error}</p>}
+
+        <button
+          onClick={handleStartSession}
+          className="w-full py-3 mt-6 font-semibold rounded-md"
+          style={{ backgroundColor: "#49B85B" }}
+        >
+          Start Session
+        </button>
+      </div>
+    </div>
+  );
 };
 
 export default StudySessionSetup;

@@ -1029,88 +1029,91 @@ const StudySession = () => {
         </div>
       </div>
 
-      {/* Chat Messages */}
-      <div className="flex-1 p-4 overflow-y-auto">
-        <div className="max-w-4xl mx-auto space-y-4">
+      {/* Chat Messages - Claude/Gemini style */}
+      <div className="flex-1 overflow-y-auto">
+        <div className="max-w-4xl mx-auto px-4 py-6">
           {messages.map((message) => (
-            <div
-              key={message.id}
-              className={`flex ${
-                message.sender === "student" ? "justify-end" : "justify-start"
-              }`}
-            >
-              <div
-                className={`max-w-2xl p-4 rounded-lg ${
-                  message.sender === "student"
-                    ? "bg-gray-700 text-white"
-                    : "text-white"
-                }`}
-                style={{
-                  backgroundColor:
-                    message.sender === "student"
-                      ? "#4A5568"
-                      : agentProfiles[message.sender]?.color || "#386641",
-                }}
-              >
-                {message.sender !== "student" && (
-                  <div className="flex items-center mb-2">
-                    <span className="text-lg mr-2">
-                      {agentProfiles[message.sender]?.icon}
-                    </span>
-                    <span className="font-semibold">
-                      {agentProfiles[message.sender]?.name}
+            <div key={message.id} className="mb-6">
+              {message.sender === "student" ? (
+                /* Student message - small bubble on the right */
+                <div className="flex justify-end">
+                  <div 
+                    className="max-w-xs sm:max-w-md lg:max-w-lg px-4 py-3 rounded-2xl text-sm leading-relaxed"
+                    style={{
+                      backgroundColor: "#2563eb",
+                      color: "white",
+                      borderBottomRightRadius: "6px"
+                    }}
+                  >
+                    <div className="whitespace-pre-wrap break-words">
+                      {typeof message.content === "string"
+                        ? message.content
+                        : String(message.content)}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                /* Agent message - full width */
+                <div className="w-full">
+                  <div className="flex items-center mb-3">
+                    <div className="w-8 h-8 rounded-full flex items-center justify-center mr-3"
+                         style={{ backgroundColor: "rgba(75, 85, 99, 0.1)" }}>
+                      <span className="text-lg">
+                        {agentProfiles[message.sender]?.icon || "🤖"}
+                      </span>
+                    </div>
+                    <span className="font-medium text-gray-200 text-sm">
+                      {agentProfiles[message.sender]?.name || "Assistant"}
                     </span>
                     {message.metadata?.simulationMode && (
                       <span className="ml-2 text-xs bg-yellow-600 px-2 py-1 rounded">
                         SIM
                       </span>
                     )}
-                    <span className="ml-auto text-xs opacity-70">
+                    <span className="ml-auto text-xs text-gray-500">
                       {message.timestamp.toLocaleTimeString()}
                     </span>
                   </div>
-                )}
-                <div className="whitespace-pre-wrap">
-                  {typeof message.content === "string"
-                    ? message.content
-                    : typeof message.content === "object" &&
-                      message.content !== null
-                    ? message.content.content ||
-                      message.content.message ||
-                      message.content.error ||
-                      JSON.stringify(message.content)
-                    : String(message.content)}
-                </div>
-                {message.metadata?.interactive && (
-                  <div className="mt-2 text-xs opacity-70 italic">
-                    💬 Interactive content - respond to continue
+                  <div className="text-gray-200 leading-relaxed whitespace-pre-wrap pl-11">
+                    {typeof message.content === "string"
+                      ? message.content
+                      : typeof message.content === "object" &&
+                        message.content !== null
+                      ? message.content.content ||
+                        message.content.message ||
+                        message.content.error ||
+                        JSON.stringify(message.content)
+                      : String(message.content)}
                   </div>
-                )}
-              </div>
+                  {message.metadata?.interactive && (
+                    <div className="mt-3 text-xs text-gray-500 italic pl-11">
+                      💬 Interactive content - respond to continue
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           ))}
 
           {/* Thinking indicator */}
           {isOrchestratorThinking && (
-            <div className="flex justify-start">
-              <div
-                className="max-w-2xl p-4 rounded-lg text-white"
-                style={{ backgroundColor: agentProfiles.orchestrator.color }}
-              >
-                <div className="flex items-center">
-                  <span className="text-lg mr-2">
+            <div className="mb-6 w-full">
+              <div className="flex items-center mb-3">
+                <div className="w-8 h-8 rounded-full flex items-center justify-center mr-3"
+                     style={{ backgroundColor: "rgba(75, 85, 99, 0.1)" }}>
+                  <span className="text-lg">
                     {agentProfiles.orchestrator.icon}
                   </span>
-                  <span className="font-semibold">
-                    {agentProfiles.orchestrator.name}
-                  </span>
                 </div>
-                <div className="mt-2 italic opacity-80">
-                  {agentGraph && !sessionData.simulationMode
-                    ? "Coordinating AWS Strands agents..."
-                    : "Analyzing and routing to best agent..."}
-                  <span className="ml-2 animate-pulse">💭</span>
-                </div>
+                <span className="font-medium text-gray-200 text-sm">
+                  {agentProfiles.orchestrator.name}
+                </span>
+              </div>
+              <div className="text-gray-400 italic pl-11">
+                {agentGraph && !sessionData.simulationMode
+                  ? "Coordinating AWS Strands agents..."
+                  : "Analyzing and routing to best agent..."}
+                <span className="ml-2 animate-pulse">💭</span>
               </div>
             </div>
           )}

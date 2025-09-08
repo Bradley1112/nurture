@@ -20,11 +20,11 @@ function Dashboard({ user }) {
       topics: [
         {
           id: "algebra_solving_linear_quadratic_equations",
-          name: "Algebra: Solving linear/quadratic equations (Numerical Answer)",
+          name: "Solving Linear/Quadratic Equations",
         },
         {
           id: "algebra_simplifying_expressions",
-          name: "Simplifying expressions (Numerical Answer)",
+          name: "Simplifying Expressions",
         },
       ],
     },
@@ -34,7 +34,7 @@ function Dashboard({ user }) {
       topics: [
         {
           id: "reading_comprehension",
-          name: "Reading Comprehension: Test understanding of a given passage with questions on inference, main idea, and author's purpose (MCQ and Open-ended Questions)",
+          name: "Reading Comprehension",
         },
       ],
     },
@@ -269,6 +269,8 @@ function Dashboard({ user }) {
       style={{
         background: "linear-gradient(135deg, #1E2B22 0%, #0f1419 100%)",
         color: "#F5F5F5",
+        paddingLeft: "20px",
+        paddingRight: "20px",
       }}
     >
       {/* Header Section */}
@@ -295,9 +297,6 @@ function Dashboard({ user }) {
       <div className="px-4 sm:px-6 lg:px-8 pb-8">
         <div className="max-w-full mx-auto">
           <div className="mb-8">
-            <h2 className="text-2xl lg:text-3xl font-bold text-white mb-6">
-              Your Learning Journey
-            </h2>
 
             {/* Mastery Level Legend */}
             <div
@@ -345,7 +344,7 @@ function Dashboard({ user }) {
                       backdropFilter: "blur(20px)",
                       border: "1px solid rgba(73, 184, 91, 0.3)",
                       borderRadius: "24px",
-                      padding: "24px lg:32px",
+                      padding: "32px",
                       transition: "all 0.3s ease",
                       minHeight: "400px",
                     }}
@@ -364,20 +363,10 @@ function Dashboard({ user }) {
                     }}
                   >
                     {/* Subject Header */}
-                    <div className="mb-6 px-2">
+                    <div className="mb-6">
                       <div className="flex items-center justify-between mb-3">
-                        <div className="flex items-center space-x-3">
-                          <div
-                            className="w-12 h-12 rounded-xl flex items-center justify-center text-2xl"
-                            style={{
-                              background:
-                                "linear-gradient(135deg, #49B85B 0%, #22c55e 100%)",
-                              boxShadow: "0 8px 16px rgba(73, 184, 91, 0.3)",
-                            }}
-                          >
-                            {["⚡", "📐", "📚"][index]}
-                          </div>
-                          <div className="pr-4">
+                        <div className="flex items-center">
+                          <div>
                             <h3 className="text-xl font-bold text-white leading-tight">
                               {subject.name.split("(")[0].trim()}
                             </h3>
@@ -386,7 +375,7 @@ function Dashboard({ user }) {
                             </p>
                           </div>
                         </div>
-                        <div className="text-right pr-2">
+                        <div className="text-right">
                           <div className="text-sm text-gray-400">Topics</div>
                           <div className="text-2xl font-bold text-white">
                             {subject.topics.length}
@@ -432,14 +421,12 @@ function Dashboard({ user }) {
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-center space-x-3 mb-3">
                                   <h4 className="font-semibold text-white text-sm leading-tight">
-                                    {topic.name.length > 80
-                                      ? `${topic.name.substring(0, 80)}...`
-                                      : topic.name}
+                                    {topic.name}
                                   </h4>
                                 </div>
 
-                                <div className="flex items-center justify-between">
-                                  <div className="flex items-center space-x-2">
+                                <div>
+                                  <div className="mb-4">
                                     <span
                                       style={{
                                         padding: "8px 16px",
@@ -465,15 +452,15 @@ function Dashboard({ user }) {
                                           .slice(1)
                                           .toLowerCase()}
                                     </span>
-                                    {topicData.lastStudied && (
-                                      <span className="text-xs text-gray-400">
-                                        Last studied:{" "}
-                                        {new Date(
-                                          topicData.lastStudied.seconds * 1000
-                                        ).toLocaleDateString()}
-                                      </span>
-                                    )}
                                   </div>
+                                  {topicData.lastStudied && (
+                                    <div className="text-xs text-gray-400">
+                                      Last studied:{" "}
+                                      {new Date(
+                                        topicData.lastStudied.seconds * 1000
+                                      ).toLocaleDateString()}
+                                    </div>
+                                  )}
                                 </div>
                               </div>
                             </div>

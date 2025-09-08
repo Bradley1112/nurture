@@ -13,6 +13,8 @@ import threading
 from datetime import datetime
 from typing import List, Dict, Any, Optional
 from dataclasses import dataclass
+from models import Subject, Question
+from utils import parse_ai_response_content, parse_structured_question
 from strands import Agent, tool
 from strands_tools import http_request
 import logging
@@ -88,25 +90,7 @@ class ExponentialBackoffHandler:
 
 # Removed unused timeout wrapper - no longer needed with improved architecture
 
-@dataclass
-class Subject:
-    name: str
-    syllabus: str
-    icon: str
-    topics: List[str]
-    description: str
-
-@dataclass
-class Question:
-    id: str
-    topic: str
-    subject: str
-    difficulty: str
-    type: str
-    question: str
-    options: Optional[List[str]]
-    correct_answer: str
-    explanation: str
+# Models imported from centralized models package
 
 class AWSRequestQueue:
     """Single-threaded request queue to prevent AWS throttling by ensuring only one request at a time"""
@@ -180,6 +164,9 @@ class EvaluationQuizAgent:
         # Initialize exponential backoff handler for AWS throttling
         self.backoff_handler = ExponentialBackoffHandler(max_retries=8, base_delay=2.0)
         
+        # Track which fallback questions have been used to avoid duplicates
+        self.used_fallback_questions = {}
+        
         # Validate AWS credentials first
         self._validate_aws_credentials()
         
@@ -204,7 +191,7 @@ class EvaluationQuizAgent:
                 name="Elementary Mathematics", 
                 syllabus="4048", 
                 icon="📐", 
-                topics=["Algebra: Solving linear/quadratic equations", "Geometry: Circle theorems"],
+                topics=["Algebra: Solving linear/quadratic equations"],
                 description="Singapore GCE O-Level Elementary Mathematics Syllabus 4048"
             ),
             Subject(
@@ -459,143 +446,13 @@ class EvaluationQuizAgent:
     
     def extract_question_content(self, ai_response) -> str:
         """Extract raw question content from AI response object"""
-        try:
-            # Handle Strands AI response format
-            if hasattr(ai_response, 'message'):
-                message_str = str(ai_response.message)
-                # Parse if it's a dict/JSON structure
-                if message_str.startswith("{'role'"):
-                    import ast
-                    parsed = ast.literal_eval(message_str)
-                    if 'content' in parsed and isinstance(parsed['content'], list):
-                        return parsed['content'][0]['text']
-                return message_str
-            elif hasattr(ai_response, 'content'):
-                return str(ai_response.content)
-            else:
-                return str(ai_response)
-        except Exception as e:
-            logger.warning(f"Failed to extract question content: {e}")
-            return str(ai_response)[:200]  # Fallback to truncated string
+        return parse_ai_response_content(ai_response)
 
     def parse_structured_question(self, ai_response_text: str, question_type: str) -> Dict[str, Any]:
         """Parse AI-generated question into structured components"""
-        import re
-        
-        # Initialize result structure
-        parsed = {
-            'question': '',
-            'options': None,
-            'correct_answer': '',
-            'explanation': ''
-        }
-        
-        try:
-            text = ai_response_text.strip()
-            
-            # Extract question text
-            question_patterns = [
-                r'\*\*Question:\*\*\s*(.*?)(?=\*\*|$)',
-                r'Question:\s*(.*?)(?=\n\n|Options:|A\)|Correct|$)',
-                r'^(.*?)(?=\n\n|Options:|A\)|Correct|$)'
-            ]
-            
-            for pattern in question_patterns:
-                match = re.search(pattern, text, re.DOTALL | re.IGNORECASE)
-                if match:
-                    parsed['question'] = match.group(1).strip()
-                    break
-            
-            if question_type == 'mcq':
-                # Extract MCQ options
-                option_patterns = [
-                    r'(?:\*\*Options:\*\*|Options:)\s*(.*?)(?=\*\*Correct|\*\*Answer|Correct Answer|$)',
-                    r'((?:A\)|a\)|\d\)).*?)(?=\*\*Correct|\*\*Answer|Correct Answer|$)',
-                    r'((?:[A-D]\).*?\n)+)'
-                ]
-                
-                for pattern in option_patterns:
-                    match = re.search(pattern, text, re.DOTALL | re.IGNORECASE)
-                    if match:
-                        options_text = match.group(1).strip()
-                        # Parse individual options
-                        option_lines = [line.strip() for line in options_text.split('\n') if line.strip()]
-                        parsed['options'] = []
-                        
-                        for line in option_lines:
-                            # Remove option prefixes (A), B), 1), etc.)
-                            cleaned = re.sub(r'^[A-Za-z]\)\s*|^\d+\)\s*|^[A-Za-z]\.\s*|^\d+\.\s*', '', line).strip()
-                            if cleaned:
-                                parsed['options'].append(cleaned)
-                        
-                        if len(parsed['options']) < 2:  # Fallback if parsing failed
-                            parsed['options'] = None
-                        break
-            
-            # Extract correct answer
-            answer_patterns = [
-                r'\*\*Correct Answer:\*\*\s*(.*?)(?=\*\*|$)',
-                r'\*\*Answer:\*\*\s*(.*?)(?=\*\*|$)', 
-                r'Correct Answer:\s*(.*?)(?=\n\n|Explanation|$)',
-                r'Answer:\s*(.*?)(?=\n\n|Explanation|$)'
-            ]
-            
-            for pattern in answer_patterns:
-                match = re.search(pattern, text, re.DOTALL | re.IGNORECASE)
-                if match:
-                    answer = match.group(1).strip()
-                    
-                    # For MCQ, extract just the option text without prefix
-                    if question_type == 'mcq' and parsed['options']:
-                        # Handle "A) option text" or "option text" formats
-                        clean_answer = re.sub(r'^[A-Za-z]\)\s*|^\d+\)\s*', '', answer).strip()
-                        # Find matching option
-                        for option in parsed['options']:
-                            if clean_answer.lower() in option.lower() or option.lower() in clean_answer.lower():
-                                parsed['correct_answer'] = option
-                                break
-                        if not parsed['correct_answer']:  # Fallback
-                            parsed['correct_answer'] = clean_answer
-                    else:
-                        parsed['correct_answer'] = answer
-                    break
-            
-            # Extract explanation
-            explanation_patterns = [
-                r'\*\*Explanation:\*\*\s*(.*?)$',
-                r'\*\*Solution:\*\*\s*(.*?)$',
-                r'Explanation:\s*(.*?)$'
-            ]
-            
-            for pattern in explanation_patterns:
-                match = re.search(pattern, text, re.DOTALL | re.IGNORECASE)
-                if match:
-                    parsed['explanation'] = match.group(1).strip()
-                    break
-            
-            # Validation and fallbacks
-            if not parsed['question']:
-                # Use the entire text if no specific question found
-                parsed['question'] = text[:500] + '...' if len(text) > 500 else text
-            
-            if not parsed['correct_answer']:
-                parsed['correct_answer'] = 'Answer not specified'
-                
-            if not parsed['explanation']:
-                parsed['explanation'] = f'This question tests understanding of the given topic.'
-            
-            logger.info(f"✅ Parsed structured question: {len(parsed['question'])} chars, {len(parsed['options']) if parsed['options'] else 0} options")
-            return parsed
-            
-        except Exception as e:
-            logger.error(f"❌ Failed to parse structured question: {e}")
-            # Return basic fallback structure
-            return {
-                'question': ai_response_text[:500] if len(ai_response_text) > 500 else ai_response_text,
-                'options': None,
-                'correct_answer': 'Answer parsing failed',
-                'explanation': 'Question parsing encountered an error.'
-            }
+        parsed = parse_structured_question(ai_response_text, question_type)
+        logger.info(f"✅ Parsed structured question: {len(parsed['question'])} chars, {len(parsed['options']) if parsed['options'] else 0} options")
+        return parsed
 
     def _ensure_rag_agent(self):
         """Ensure RAG agent is initialized, creating it if needed"""
@@ -650,6 +507,7 @@ class EvaluationQuizAgent:
             # Step 2: Generate questions with EXTREME delays (sequential processing)
             generated_questions = []
             
+            # Define difficulty progression: 3 batches of 3 questions (9 total)
             # Define difficulty progression: 3 batches of 3 questions (9 total)
             difficulty_config = [
                 {'level': 'easy', 'count': 3, 'type': 'mcq'},          # Batch 1: Concept Identification
@@ -915,19 +773,35 @@ class EvaluationQuizAgent:
 **Explanation:** {fallback_question.get('explanation', f"This {fallback_question['difficulty']} question requires detailed working and explanation.")}"""
 
     def _get_fallback_question_for_difficulty(self, topic: str, difficulty: str) -> Dict[str, Any]:
-        """Get a fallback question for a specific topic and difficulty"""
+        """Get a fallback question for a specific topic and difficulty, avoiding duplicates"""
         # Get the fallback templates (same as in _generate_fallback_questions)
         fallback_templates = self._get_fallback_templates()
+        
+        # Create unique key for tracking this topic-difficulty combination
+        usage_key = f"{topic}_{difficulty}"
         
         # Find questions for the topic
         subject = self.get_subject_by_topic(topic)
         if subject and subject.name in fallback_templates:
             topic_questions = fallback_templates[subject.name].get(topic, [])
             
-            # Find a question with matching difficulty
-            for question in topic_questions:
-                if question.get('difficulty') == difficulty:
-                    return question
+            # Find ALL questions with matching difficulty
+            matching_questions = [q for q in topic_questions if q.get('difficulty') == difficulty]
+            
+            if matching_questions:
+                # Track which question index to use next
+                if usage_key not in self.used_fallback_questions:
+                    self.used_fallback_questions[usage_key] = 0
+                
+                # Get the next question in rotation
+                question_index = self.used_fallback_questions[usage_key] % len(matching_questions)
+                selected_question = matching_questions[question_index]
+                
+                # Increment counter for next time
+                self.used_fallback_questions[usage_key] += 1
+                
+                logger.info(f"Selected fallback question {question_index + 1}/{len(matching_questions)} for {topic} {difficulty}")
+                return selected_question
                     
             # If no exact match, return the first question of that topic
             if topic_questions:
@@ -1068,6 +942,70 @@ class EvaluationQuizAgent:
                     {
                         'question': 'Evaluate the use of irony and satire in contemporary texts. How do these devices enhance meaning?',
                         'correct_answer': 'Irony reveals contradictions and deeper meanings; satire criticizes society through humor. Both make readers think critically about issues.',
+                        'difficulty': 'hard',
+                        'type': 'structured'
+                    }
+                ]
+            },
+            'Elementary Mathematics': {
+                'Algebra: Solving linear/quadratic equations': [
+                    # Easy (3 questions): Concept Identification - MCQ
+                    {
+                        'question': 'Which of the following is the correct quadratic formula for solving ax² + bx + c = 0?',
+                        'options': ['x = (-b ± √(b² - 4ac)) / 2a', 'x = (-b ± √(b² + 4ac)) / 2a', 'x = (b ± √(b² - 4ac)) / 2a', 'x = (-b ± √(b² - 4ac)) / a'],
+                        'correct_answer': 'x = (-b ± √(b² - 4ac)) / 2a',
+                        'difficulty': 'easy',
+                        'type': 'mcq'
+                    },
+                    {
+                        'question': 'What is the discriminant of the quadratic equation 3x² - 5x + 2 = 0?',
+                        'options': ['1', '7', '25', '-7'],
+                        'correct_answer': '1',
+                        'difficulty': 'easy',
+                        'type': 'mcq'
+                    },
+                    {
+                        'question': 'Which method is most efficient for solving x² - 6x + 9 = 0?',
+                        'options': ['Quadratic formula', 'Factoring', 'Completing the square', 'Graphing'],
+                        'correct_answer': 'Factoring',
+                        'difficulty': 'easy',
+                        'type': 'mcq'
+                    },
+                    # Medium (3 questions): Single-Formula Application - Structured
+                    {
+                        'question': 'Solve the quadratic equation x² - 7x + 12 = 0 by factoring.',
+                        'correct_answer': 'x = 3 or x = 4',
+                        'difficulty': 'medium',
+                        'type': 'structured'
+                    },
+                    {
+                        'question': 'Find the roots of 2x² + 5x - 3 = 0 using the quadratic formula.',
+                        'correct_answer': 'x = 0.5 or x = -3',
+                        'difficulty': 'medium',
+                        'type': 'structured'
+                    },
+                    {
+                        'question': 'Solve x² - 8x + 7 = 0 by completing the square.',
+                        'correct_answer': 'x = 7 or x = 1',
+                        'difficulty': 'medium',
+                        'type': 'structured'
+                    },
+                    # Hard (3 questions): Multi-Step Application - Structured
+                    {
+                        'question': 'A rectangular garden has length (x + 3) metres and width (x - 1) metres. If the area is 35 m², form and solve a quadratic equation to find the dimensions.',
+                        'correct_answer': 'Length = 8m, Width = 4.375m (x = 5)',
+                        'difficulty': 'hard',
+                        'type': 'structured'
+                    },
+                    {
+                        'question': 'The sum of two consecutive positive integers is 41, and their product is 420. Find the two integers by setting up and solving a quadratic equation.',
+                        'correct_answer': '20 and 21',
+                        'difficulty': 'hard',
+                        'type': 'structured'
+                    },
+                    {
+                        'question': 'Find the values of k for which the quadratic equation x² - (k+2)x + 2k = 0 has equal roots.',
+                        'correct_answer': 'k = 2 ± 2√2',
                         'difficulty': 'hard',
                         'type': 'structured'
                     }

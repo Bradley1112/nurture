@@ -7,11 +7,14 @@ This project was bootstrapped with [Create React App](https://github.com/faceboo
 1. Start the Backend (Flask + Strands AI):
 
 cd nurture/backend
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
 BACKEND_PORT=8000 python app.py
 
 2. Start the Frontend (React):
 
-cd /Users/gabrielyap/nurture/nurture-app
+cd nurture/nurture-app
 npm start
 
 Alternative: Quickstart

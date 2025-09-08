@@ -10,17 +10,18 @@ except Exception:
     MeshAgenticEvaluationService = None
 
 try:
+    from .optimized_evaluation import OptimizedMeshEvaluationService
+except Exception:
+    OptimizedMeshEvaluationService = None
+
+try:
     from .quiz_generation import EvaluationQuizAgent
 except Exception:
     EvaluationQuizAgent = None
 
-# Import TimeLimitedStrandsEvaluationService from the original location
+# Use optimized evaluation service as TimeLimitedStrandsEvaluationService
 try:
-    import sys
-    import os
-    # Add parent directory to path to import from original agenticEvaluation.py
-    sys.path.append(os.path.dirname(os.path.dirname(__file__)))
-    from agenticEvaluation import TimeLimitedStrandsEvaluationService
+    from .optimized_evaluation import OptimizedMeshEvaluationService as TimeLimitedStrandsEvaluationService
     TIME_LIMITED_AVAILABLE = True
 except Exception as e:
     print(f"Warning: TimeLimitedStrandsEvaluationService not available: {e}")
@@ -29,6 +30,7 @@ except Exception as e:
 
 __all__ = [
     'MeshAgenticEvaluationService',
+    'OptimizedMeshEvaluationService',
     'EvaluationQuizAgent', 
     'TimeLimitedStrandsEvaluationService',
     'TIME_LIMITED_AVAILABLE'

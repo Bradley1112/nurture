@@ -133,19 +133,30 @@ def stream_real_agent_discussion():
         
         logger.info(f"Starting real-time agent discussion stream ({time_limit_minutes}min)")
         
-        # Import and create the evaluation service
+        # Import and create the meaningful evaluation service 
         try:
-            from services.agentic import TimeLimitedStrandsEvaluationService
+            from services.agentic import MeshAgenticEvaluationService
         except ImportError as import_error:
-            logger.error(f"Failed to import TimeLimitedStrandsEvaluationService: {import_error}")
-            return jsonify({'error': 'Agentic evaluation service not available'}), 503
+            logger.error(f"Failed to import MeshAgenticEvaluationService: {import_error}")
+            # Fallback to OptimizedMeshEvaluationService
+            try:
+                from services.agentic import OptimizedMeshEvaluationService
+                service = OptimizedMeshEvaluationService(
+                    time_limit_minutes=time_limit_minutes, 
+                    enable_streaming=True
+                )
+                logger.info("Using fallback OptimizedMeshEvaluationService")
+            except ImportError:
+                logger.error("No agentic evaluation services available")
+                return jsonify({'error': 'Agentic evaluation service not available'}), 503
+        else:
+            # Create meaningful service instance with streaming enabled
+            service = MeshAgenticEvaluationService(enable_streaming=True)
+            logger.info(f"Using MeshAgenticEvaluationService with meaningful conversations")
         
-        # Create service instance and start streaming
-        service = TimeLimitedStrandsEvaluationService(time_limit_minutes=time_limit_minutes)
-        
-        # Create streaming response using the service's streaming method
+        # Create streaming response using the meaningful streaming method
         response = Response(
-            service.stream_evaluation_with_chat(quiz_results), 
+            service.stream_evaluation_with_meaningful_chat(quiz_results), 
             mimetype='text/event-stream'
         )
         response.headers['Cache-Control'] = 'no-cache'

@@ -10,6 +10,11 @@ except Exception:
     MeshAgenticEvaluationService = None
 
 try:
+    from .optimized_evaluation import OptimizedMeshEvaluationService
+except Exception:
+    OptimizedMeshEvaluationService = None
+
+try:
     from .quiz_generation import EvaluationQuizAgent
 except Exception:
     EvaluationQuizAgent = None
@@ -29,6 +34,7 @@ except Exception as e:
 
 __all__ = [
     'MeshAgenticEvaluationService',
+    'OptimizedMeshEvaluationService',
     'EvaluationQuizAgent', 
     'TimeLimitedStrandsEvaluationService',
     'TIME_LIMITED_AVAILABLE'

@@ -1030,13 +1030,13 @@ const StudySession = () => {
       </div>
 
       {/* Chat Messages - Claude/Gemini style matching reference image */}
-      <div className="flex-1 overflow-y-auto">
-        <div className="max-w-5xl mx-auto">
+      <div className="flex-1 overflow-y-auto" style={{ paddingLeft: "20px", paddingRight: "20px" }}>
+        <div className="max-w-4xl mx-auto">
           {messages.map((message) => (
             <div key={message.id}>
               {message.sender === "student" ? (
                 /* User message - content-sized bubble right-aligned */
-                <div className="w-full px-6" style={{ display: "flex", justifyContent: "flex-end", marginTop: "12px", marginBottom: "12px" }}>
+                <div className="w-full" style={{ display: "flex", justifyContent: "flex-end", marginTop: "12px", marginBottom: "12px" }}>
                   <span 
                     className="text-sm leading-relaxed"
                     style={{
@@ -1058,7 +1058,7 @@ const StudySession = () => {
                 </div>
               ) : (
                 /* Agent message - full width like reference */
-                <div className="w-full px-6 py-6 border-b border-gray-700" style={{ backgroundColor: "rgba(255, 255, 255, 0.02)" }}>
+                <div className="w-full py-6 border-b border-gray-700" style={{ backgroundColor: "rgba(255, 255, 255, 0.02)" }}>
                   <div className="max-w-4xl">
                     <div className="flex items-start">
                       <div className="w-8 h-8 rounded-full flex items-center justify-center mr-4 mt-1"
@@ -1107,7 +1107,7 @@ const StudySession = () => {
 
           {/* Thinking indicator */}
           {isOrchestratorThinking && (
-            <div className="w-full px-6 py-6 border-b border-gray-700" style={{ backgroundColor: "rgba(255, 255, 255, 0.02)" }}>
+            <div className="w-full py-6 border-b border-gray-700" style={{ backgroundColor: "rgba(255, 255, 255, 0.02)" }}>
               <div className="max-w-4xl">
                 <div className="flex items-start">
                   <div className="w-8 h-8 rounded-full flex items-center justify-center mr-4 mt-1"

@@ -19,6 +19,9 @@ quiz_agent = None
 question_cache = {}  # Simple in-memory cache for generated questions
 quiz_progress = {}  # Track quiz generation progress by session ID
 
+# Cache versioning to prevent stale data issues
+CACHE_VERSION = "v1.1"  # Increment this when fallback logic changes
+
 # Thread-safe locks for progress tracking
 progress_lock = Lock()
 cache_lock = Lock()
@@ -155,20 +158,27 @@ def start_quiz():
         # Generate unique session ID
         session_id = f"quiz_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{hash(str(selected_topics)) % 10000}"
         
-        # Create cache key from sorted topics
-        cache_key = '_'.join(sorted(selected_topics))
+        # Create cache key from sorted topics + version
+        cache_key = f"{CACHE_VERSION}_{('_'.join(sorted(selected_topics)))}"
         
         # Check cache first (CACHING OPTIMIZATION) - Thread safe
         with cache_lock:
             if cache_key in question_cache:
-                logger.info(f"Returning cached quiz for topics: {selected_topics}")
-                return jsonify({
-                    'quiz_data': question_cache[cache_key],
-                    'status': 'success',
-                    'message': f'Quiz loaded from cache with {question_cache[cache_key]["total_questions"]} questions',
-                    'cached': True,
-                    'session_id': session_id
-                })
+                cached_data = question_cache[cache_key]
+                # Validate cache version to prevent stale data
+                if cached_data.get('cache_version') == CACHE_VERSION:
+                    logger.info(f"Returning cached quiz for topics: {selected_topics} (version: {CACHE_VERSION})")
+                    return jsonify({
+                        'quiz_data': cached_data,
+                        'status': 'success',
+                        'message': f'Quiz loaded from cache with {cached_data["total_questions"]} questions',
+                        'cached': True,
+                        'session_id': session_id
+                    })
+                else:
+                    # Remove stale cache entry
+                    logger.info(f"Removing stale cache entry for topics: {selected_topics}")
+                    del question_cache[cache_key]
         
         # PRIMARY METHOD: Initialize Agentic RAG Quiz Agent
         agent = init_quiz_agent()
@@ -215,7 +225,9 @@ def start_quiz():
                 'fallback_used': True
             }
             
-            # Cache the fallback quiz
+            # Cache the fallback quiz with version
+            fallback_data['cache_version'] = CACHE_VERSION
+            cache_key = f"{CACHE_VERSION}_{('_'.join(sorted(selected_topics)))}"
             with cache_lock:
                 question_cache[cache_key] = fallback_data
             return jsonify(fallback_quiz)
@@ -261,7 +273,9 @@ def start_quiz():
                         quiz_data = agent.start_quiz(selected_topics)
                         
                         # Store successful agentic generation in cache - Thread safe
-                        cache_key = '_'.join(sorted(selected_topics))
+                        # Add version to quiz data and create versioned cache key
+                        quiz_data['cache_version'] = CACHE_VERSION
+                        cache_key = f"{CACHE_VERSION}_{('_'.join(sorted(selected_topics)))}"
                         with cache_lock:
                             question_cache[cache_key] = quiz_data
                         logger.info(f"✅ Agentic RAG quiz cached for key: {cache_key}")
@@ -424,6 +438,29 @@ def get_fallback_quiz(session_id):
     except Exception as e:
         logger.error(f"❌ Fallback quiz generation failed for session {session_id}: {e}")
         return jsonify({'error': str(e)}), 500
+
+@quiz_blueprint.route('/api/quiz/clear-cache', methods=['POST'])
+def clear_quiz_cache():
+    """Clear the quiz question cache - useful for development/testing"""
+    global question_cache
+    
+    with cache_lock:
+        cache_size_before = len(question_cache)
+        question_cache.clear()
+        
+    logger.info(f"🗑️ Cleared quiz cache - removed {cache_size_before} cached entries")
+    
+    return jsonify({
+        'status': 'success',
+        'message': f'Quiz cache cleared - removed {cache_size_before} cached entries',
+        'cache_size_before': cache_size_before,
+        'cache_size_after': 0
+    })
+
+@quiz_blueprint.route('/api/quiz/generate', methods=['POST'])
+def generate_quiz():
+    """Alias for start_quiz to maintain frontend compatibility"""
+    return start_quiz()
 
 def generate_fallback_quiz(selected_topics, session_id):
     """Generate fallback quiz when Strands SDK is not available"""

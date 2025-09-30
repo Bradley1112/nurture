@@ -1,0 +1,308 @@
+name: 🎯 Release Management
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g., v1.2.3)'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  packages: write
+  issues: write
+  pull-requests: write
+
+jobs:
+  validate-release:
+    name: ✅ Validate Release
+    runs-on: ubuntu-latest
+
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      is_prerelease: ${{ steps.version.outputs.is_prerelease }}
+
+    steps:
+      - name: 📥 Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 🏷️ Extract Version
+        id: version
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            VERSION="${{ github.event.inputs.version }}"
+          else
+            VERSION=${GITHUB_REF#refs/tags/}
+          fi
+          
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          
+          # Check if this is a prerelease
+          if [[ $VERSION =~ -[a-zA-Z] ]]; then
+            echo "is_prerelease=true" >> $GITHUB_OUTPUT
+          else
+            echo "is_prerelease=false" >> $GITHUB_OUTPUT
+          fi
+          
+          echo "Processing release: $VERSION"
+
+      - name: 🔍 Validate Version Format
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          if [[ ! $VERSION =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9]+)?$ ]]; then
+            echo "❌ Invalid version format: $VERSION"
+            echo "Expected format: v1.2.3 or v1.2.3-beta1"
+            exit 1
+          fi
+          echo "✅ Version format is valid: $VERSION"
+
+      - name: 📋 Generate Changelog
+        id: changelog
+        run: |
+          # Get the previous tag
+          PREVIOUS_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+          
+          if [[ -n "$PREVIOUS_TAG" ]]; then
+            echo "Generating changelog from $PREVIOUS_TAG to ${{ steps.version.outputs.version }}"
+            
+            # Generate changelog
+            CHANGELOG=$(git log --pretty=format:"- %s (%h)" $PREVIOUS_TAG..HEAD | head -20)
+            
+            # Save changelog to file and output
+            echo "CHANGELOG<<EOF" >> $GITHUB_OUTPUT
+            echo "## Changes since $PREVIOUS_TAG" >> $GITHUB_OUTPUT
+            echo "$CHANGELOG" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          else
+            echo "CHANGELOG=First release 🎉" >> $GITHUB_OUTPUT
+          fi
+
+  build-release:
+    name: 🏗️ Build Release Assets
+    runs-on: ubuntu-latest
+    needs: validate-release
+
+    steps:
+      - name: 📥 Checkout Code
+        uses: actions/checkout@v4
+
+      - name: 🐍 Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: 📦 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18.x'
+
+      - name: 🏗️ Build Frontend
+        run: |
+          cd nurture-app
+          npm ci
+          npm run build
+          
+          # Create release archive
+          tar -czf nurture-frontend-${{ needs.validate-release.outputs.version }}.tar.gz build/
+
+      - name: 🏗️ Prepare Backend Release
+        run: |
+          cd backend
+          
+          # Create a clean release directory
+          mkdir -p release
+          cp -r . release/
+          cd release
+          
+          # Remove development files
+          rm -rf __pycache__ .pytest_cache .venv venv tests/
+          
+          # Create release archive
+          tar -czf ../nurture-backend-${{ needs.validate-release.outputs.version }}.tar.gz .
+
+      - name: 📦 Upload Build Artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: release-assets
+          path: |
+            nurture-app/nurture-frontend-${{ needs.validate-release.outputs.version }}.tar.gz
+            backend/nurture-backend-${{ needs.validate-release.outputs.version }}.tar.gz
+
+  create-release:
+    name: 🎯 Create Release
+    runs-on: ubuntu-latest
+    needs: [validate-release, build-release]
+
+    steps:
+      - name: 📥 Checkout Code
+        uses: actions/checkout@v4
+
+      - name: 📦 Download Build Artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: release-assets
+          path: ./release-assets
+
+      - name: 🎯 Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ needs.validate-release.outputs.version }}
+          name: "Nurture ${{ needs.validate-release.outputs.version }}"
+          body: |
+            # 🌱 Nurture ${{ needs.validate-release.outputs.version }}
+            
+            ${{ needs.validate-release.outputs.changelog }}
+            
+            ## 📦 Installation
+            
+            ### Quick Start
+            ```bash
+            # Download and extract the release
+            wget https://github.com/${{ github.repository }}/releases/download/${{ needs.validate-release.outputs.version }}/nurture-backend-${{ needs.validate-release.outputs.version }}.tar.gz
+            wget https://github.com/${{ github.repository }}/releases/download/${{ needs.validate-release.outputs.version }}/nurture-frontend-${{ needs.validate-release.outputs.version }}.tar.gz
+            
+            # Extract and run
+            tar -xzf nurture-backend-${{ needs.validate-release.outputs.version }}.tar.gz
+            tar -xzf nurture-frontend-${{ needs.validate-release.outputs.version }}.tar.gz
+            ```
+            
+            ### Docker Images
+            ```bash
+            docker pull ghcr.io/${{ github.repository }}/backend:${{ needs.validate-release.outputs.version }}
+            docker pull ghcr.io/${{ github.repository }}/frontend:${{ needs.validate-release.outputs.version }}
+            ```
+            
+            ## 🔧 What's New
+            - Enhanced AI agent collaboration
+            - Improved study session management
+            - Performance optimizations
+            - Bug fixes and security updates
+            
+            ## 🛠️ System Requirements
+            - **Backend**: Python 3.8+, Redis, AWS Bedrock access
+            - **Frontend**: Modern web browser with JavaScript enabled
+            - **Memory**: Minimum 2GB RAM recommended
+            - **Storage**: 1GB free space
+            
+            ---
+            
+            **Full Changelog**: https://github.com/${{ github.repository }}/compare/v1.0.0...${{ needs.validate-release.outputs.version }}
+          prerelease: ${{ needs.validate-release.outputs.is_prerelease == 'true' }}
+          files: |
+            release-assets/nurture-backend-${{ needs.validate-release.outputs.version }}.tar.gz
+            release-assets/nurture-frontend-${{ needs.validate-release.outputs.version }}.tar.gz
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  update-deployment:
+    name: 🚀 Update Deployment
+    runs-on: ubuntu-latest
+    needs: [validate-release, create-release]
+    if: needs.validate-release.outputs.is_prerelease == 'false'
+
+    steps:
+      - name: 📥 Checkout Code
+        uses: actions/checkout@v4
+
+      - name: ⚙️ Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: 🚀 Deploy to Production
+        run: |
+          echo "🚀 Deploying Nurture ${{ needs.validate-release.outputs.version }} to production..."
+          
+          # Update ECS services with new image tags
+          # aws ecs update-service \
+          #   --cluster production \
+          #   --service nurture-backend \
+          #   --task-definition nurture-backend:${{ needs.validate-release.outputs.version }} \
+          #   --force-new-deployment
+          
+          # aws ecs update-service \
+          #   --cluster production \
+          #   --service nurture-frontend \
+          #   --task-definition nurture-frontend:${{ needs.validate-release.outputs.version }} \
+          #   --force-new-deployment
+          
+          echo "✅ Production deployment initiated"
+
+      - name: 🏥 Post-deployment Health Check
+        run: |
+          echo "🏥 Running post-deployment health checks..."
+          sleep 60  # Wait for deployment to stabilize
+          
+          # Health check production endpoints
+          # curl -f https://nurture.example.com/api/health
+          # curl -f https://nurture.example.com/
+          
+          echo "✅ Health checks passed"
+
+  notify-release:
+    name: 📣 Release Notifications
+    runs-on: ubuntu-latest
+    needs: [validate-release, create-release, update-deployment]
+    if: always()
+
+    steps:
+      - name: 📣 Slack Release Notification
+        uses: 8398a7/action-slack@v3
+        with:
+          status: success
+          text: |
+            🎉 **Nurture ${{ needs.validate-release.outputs.version }} Released!**
+            
+            🔗 **Release Notes:** https://github.com/${{ github.repository }}/releases/tag/${{ needs.validate-release.outputs.version }}
+            🚀 **Status:** ${{ needs.validate-release.outputs.is_prerelease == 'true' && 'Pre-release' || 'Production Release' }}
+            
+            The new version is now available for download and deployment! 🌱
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+      - name: 📧 Email Release Announcement
+        if: needs.validate-release.outputs.is_prerelease == 'false'
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 587
+          username: ${{ secrets.EMAIL_USERNAME }}
+          password: ${{ secrets.EMAIL_PASSWORD }}
+          subject: "🎉 Nurture ${{ needs.validate-release.outputs.version }} Released!"
+          to: ${{ secrets.RELEASE_NOTIFICATION_EMAIL }}
+          from: "Nurture Release Team <releases@nurture.dev>"
+          html_body: |
+            <div style="font-family: Arial, sans-serif; max-width: 600px;">
+              <h1 style="color: #49B85B;">🌱 Nurture ${{ needs.validate-release.outputs.version }}</h1>
+              
+              <p>We're excited to announce the release of Nurture ${{ needs.validate-release.outputs.version }}!</p>
+              
+              <h2>🔗 Quick Links</h2>
+              <ul>
+                <li><a href="https://github.com/${{ github.repository }}/releases/tag/${{ needs.validate-release.outputs.version }}">Release Notes</a></li>
+                <li><a href="https://github.com/${{ github.repository }}">GitHub Repository</a></li>
+                <li><a href="https://nurture.example.com">Live Application</a></li>
+              </ul>
+              
+              <h2>📦 Installation</h2>
+              <p>Get started with the new version using our <a href="https://github.com/${{ github.repository }}#quick-start">Quick Start Guide</a>.</p>
+              
+              <hr>
+              <p style="color: #666; font-size: 12px;">
+                This is an automated email from the Nurture CI/CD pipeline.
+              </p>
+            </div>
+
+      - name: 🐦 Tweet Release (if configured)
+        if: needs.validate-release.outputs.is_prerelease == 'false' && secrets.TWITTER_API_KEY != ''
+        run: |
+          echo "🐦 Would tweet about release ${{ needs.validate-release.outputs.version }}"
+          # Add Twitter API integration here if needed

@@ -333,9 +333,9 @@ function EvaluationQuiz({ user }) {
   const handleTopicSelection = (topic) => {
     setSelectedTopics(prev => {
       if (prev.includes(topic)) {
-        return prev.filter(t => t !== topic);
+        return []; // Deselect if already selected
       } else {
-        return [...prev, topic];
+        return [topic]; // Only allow one topic selection
       }
     });
   };
@@ -343,7 +343,7 @@ function EvaluationQuiz({ user }) {
   // Start quiz with progress tracking - triggers sophisticated Python agentic RAG system
   const startQuiz = async () => {
     if (selectedTopics.length === 0) {
-      setError('Please select at least one topic');
+      setError('Please select one topic for evaluation');
       return;
     }
 
@@ -852,13 +852,13 @@ function EvaluationQuiz({ user }) {
               {generationProgress.method === 'agentic_rag' || generationProgress.status === 'agentic_rag_generating' ? (
                 // AGENTIC RAG indicators
                 <>
+                  <div>This make take up to 10 minutes...</div>
                   <div>🧠 <strong>AGENTIC RAG ACTIVE</strong></div>
                   <div>🔄 AWS Strands SDK Multi-Agent System</div>
                   <div>⚡ Claude Sonnet 4.0 (anthropic.claude-sonnet-4-20250514-v1:0)</div>
                   <div>📡 Real-time PDF content fetching</div>
                   <div>🤖 Agent pool system with batch processing</div>
                   <div>🎯 Singapore O-Level syllabus alignment</div>
-                  <div>🚀 AI-generated questions with explanations</div>
                 </>
               ) : (
                 // Fallback indicators
@@ -882,7 +882,7 @@ function EvaluationQuiz({ user }) {
         <div className="auth-card">
           <h1>🧠 Assessment Time</h1>
           <p className="text-center mb-6" style={{ opacity: 0.9 }}>
-            Choose subjects to discover your current expertise level and build your personalized learning path
+            Choose one topic to discover your current expertise level and build your personalized learning path
           </p>
           
           {systemStatus && !systemStatus.backend_online && (
@@ -922,7 +922,8 @@ function EvaluationQuiz({ user }) {
                       background: selectedTopics.includes(topic) ? 'rgba(73, 184, 91, 0.2)' : 'rgba(30, 43, 34, 0.3)'
                     }}>
                       <input
-                        type="checkbox"
+                        type="radio"
+                        name="topic-selection"
                         checked={selectedTopics.includes(topic)}
                         onChange={() => handleTopicSelection(topic)}
                         style={{ accentColor: 'var(--vibrant-leaf)' }}
@@ -946,9 +947,9 @@ function EvaluationQuiz({ user }) {
               color: selectedTopics.length > 0 && systemStatus?.backend_online ? 'var(--deep-forest)' : 'rgba(245, 245, 245, 0.5)'
             }}
           >
-            {selectedTopics.length === 0 ? '🌿 Select topics to continue' : 
+            {selectedTopics.length === 0 ? '🌿 Select a topic to continue' : 
              !systemStatus?.backend_online ? '⚠️ Backend offline' :
-             `🚀 Begin AI Assessment (${selectedTopics.length} topic${selectedTopics.length > 1 ? 's' : ''})`}
+             `🚀 Begin AI Assessment (${selectedTopics[0]})`}
           </button>
           
           {systemStatus?.subjects_available > 0 && (
@@ -1399,7 +1400,7 @@ function EvaluationQuiz({ user }) {
               animation: 'spin 1s linear infinite'
             }} />
             <p style={{ marginTop: 'var(--space-4)', opacity: 0.8 }}>
-              Analysis in progress... This may take up to 1 minute
+              Analysis in progress... This may take up to 10 minute
             </p>
           </div>
         </div>

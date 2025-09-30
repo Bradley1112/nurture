@@ -260,7 +260,7 @@ class EvaluationQuizAgent:
             # Use lazy initialization as fallback
             self.rag_agent = None
             self.agent_tools = None
-            self.model_id = "anthropic.claude-3-5-sonnet-20240620-v1:0"
+            self.model_id = "anthropic.claude-3-5-sonnet-20241022-v2:0"
             logger.info("✅ Agent setup configured for lazy initialization")
     
     def _setup_agents_with_timeout(self):
@@ -366,11 +366,11 @@ class EvaluationQuizAgent:
         # Main RAG Agent
         self.rag_agent = Agent(
             tools=[http_request, fetch_syllabus_content, generate_adaptive_questions],
-            model="anthropic.claude-3-5-sonnet-20240620-v1:0"  # Using Claude 3.5 Sonnet
+            model="anthropic.claude-3-5-sonnet-20241022-v2:0"  # Using Claude 3.5 Sonnet v2
         )
         
         # Agent configuration for fresh instance creation
-        self.model_id = "anthropic.claude-3-5-sonnet-20240620-v1:0"
+        self.model_id = "anthropic.claude-3-5-sonnet-20241022-v2:0"
         self.agent_tools = [generate_adaptive_questions]
     
     def _create_fresh_question_agent(self):
@@ -735,7 +735,7 @@ class EvaluationQuizAgent:
                             """
                         
                         # Check circuit breaker before attempting AI call
-                        if self.request_queue.should_attempt_call():
+                        if self.request_queue.should_attempt_call() and not self.request_queue.is_circuit_open:
                             try:
                                 # Apply minimal delay to prevent throttling
                                 delay = await self.request_queue.get_request_delay()
@@ -804,9 +804,9 @@ class EvaluationQuizAgent:
                     
                     # Shorter delay between batches for better user experience
                     if self.request_queue.is_circuit_open:
-                        logger.info("Circuit breaker active: using fallback questions immediately")
-                        # Skip remaining AI attempts and use fallbacks
-                        break
+                        logger.info("Circuit breaker active: using fallback questions for remaining batches")
+                        # Continue to process remaining batches with fallback questions only
+                        # Don't break - we need all 9 questions
                     else:
                         logger.info("Normal processing: minimal delay before next batch")
                         await asyncio.sleep(2.0)
@@ -916,6 +916,10 @@ class EvaluationQuizAgent:
 
     def _get_fallback_question_for_difficulty(self, topic: str, difficulty: str) -> Dict[str, Any]:
         """Get a fallback question for a specific topic and difficulty"""
+        # Initialize counter if not exists
+        if not hasattr(self, '_fallback_counters'):
+            self._fallback_counters = {}
+        
         # Get the fallback templates (same as in _generate_fallback_questions)
         fallback_templates = self._get_fallback_templates()
         
@@ -924,10 +928,20 @@ class EvaluationQuizAgent:
         if subject and subject.name in fallback_templates:
             topic_questions = fallback_templates[subject.name].get(topic, [])
             
-            # Find a question with matching difficulty
-            for question in topic_questions:
-                if question.get('difficulty') == difficulty:
-                    return question
+            # Find all questions with matching difficulty
+            matching_questions = [q for q in topic_questions if q.get('difficulty') == difficulty]
+            
+            if matching_questions:
+                # Use counter to cycle through different questions of same difficulty
+                counter_key = f"{topic}_{difficulty}"
+                if counter_key not in self._fallback_counters:
+                    self._fallback_counters[counter_key] = 0
+                
+                # Get the next question in rotation
+                question_index = self._fallback_counters[counter_key] % len(matching_questions)
+                self._fallback_counters[counter_key] += 1
+                
+                return matching_questions[question_index]
                     
             # If no exact match, return the first question of that topic
             if topic_questions:
@@ -1004,6 +1018,132 @@ class EvaluationQuizAgent:
                     {
                         'question': 'A train decelerates uniformly from 25 m/s to rest in 200 m. Find the deceleration and time taken.',
                         'correct_answer': 'Deceleration: 1.56 m/s², Time: 16 s',
+                        'difficulty': 'hard',
+                        'type': 'structured'
+                    }
+                ]
+            },
+            'Elementary Mathematics': {
+                'Algebra: Solving linear/quadratic equations': [
+                    # Easy (3 questions): Basic algebra - MCQ
+                    {
+                        'question': 'What is the solution to the equation: 2x + 6 = 14?',
+                        'options': ['x = 2', 'x = 4', 'x = 6', 'x = 8'],
+                        'correct_answer': 'x = 4',
+                        'difficulty': 'easy',
+                        'type': 'mcq'
+                    },
+                    {
+                        'question': 'Which of the following is a quadratic equation?',
+                        'options': ['2x + 3 = 7', 'x² + 5x + 6 = 0', '3x - 1 = 8', 'x/2 = 4'],
+                        'correct_answer': 'x² + 5x + 6 = 0',
+                        'difficulty': 'easy',
+                        'type': 'mcq'
+                    },
+                    {
+                        'question': 'What is the standard form of a quadratic equation?',
+                        'options': ['ax + b = 0', 'ax² + bx + c = 0', 'x = a + b', 'y = mx + c'],
+                        'correct_answer': 'ax² + bx + c = 0',
+                        'difficulty': 'easy',
+                        'type': 'mcq'
+                    },
+                    # Medium (3 questions): Applied algebra - Structured
+                    {
+                        'question': 'Solve for x: 3x - 7 = 2x + 5. Show your working.',
+                        'correct_answer': '3x - 7 = 2x + 5\n3x - 2x = 5 + 7\nx = 12',
+                        'difficulty': 'medium',
+                        'type': 'structured'
+                    },
+                    {
+                        'question': 'Factorize the quadratic expression: x² + 7x + 12',
+                        'correct_answer': 'x² + 7x + 12 = (x + 3)(x + 4)',
+                        'difficulty': 'medium',
+                        'type': 'structured'
+                    },
+                    {
+                        'question': 'Solve the quadratic equation: x² - 5x + 6 = 0',
+                        'correct_answer': 'x² - 5x + 6 = 0\n(x - 2)(x - 3) = 0\nx = 2 or x = 3',
+                        'difficulty': 'medium',
+                        'type': 'structured'
+                    },
+                    # Hard (3 questions): Complex problem-solving - Structured
+                    {
+                        'question': 'A rectangular garden has length (x + 4) meters and width (x - 2) meters. If the area is 48 square meters, find the value of x.',
+                        'correct_answer': 'Area = length × width\n48 = (x + 4)(x - 2)\n48 = x² + 2x - 8\nx² + 2x - 56 = 0\n(x + 8)(x - 7) = 0\nx = 7 (since x must be positive)',
+                        'difficulty': 'hard',
+                        'type': 'structured'
+                    },
+                    {
+                        'question': 'Use the quadratic formula to solve: 2x² + 3x - 2 = 0',
+                        'correct_answer': 'Using x = (-b ± √(b² - 4ac))/2a\na = 2, b = 3, c = -2\nx = (-3 ± √(9 + 16))/4 = (-3 ± 5)/4\nx = 1/2 or x = -2',
+                        'difficulty': 'hard',
+                        'type': 'structured'
+                    },
+                    {
+                        'question': 'A ball is thrown upward. Its height h (in meters) after t seconds is given by h = -5t² + 20t + 25. Find when the ball reaches its maximum height.',
+                        'correct_answer': 'Maximum occurs at t = -b/2a = -20/(2×-5) = 2 seconds\nMaximum height = -5(2)² + 20(2) + 25 = 45 meters',
+                        'difficulty': 'hard',
+                        'type': 'structured'
+                    }
+                ],
+                'Geometry: Circle theorems': [
+                    # Easy (3 questions): Basic circle concepts - MCQ
+                    {
+                        'question': 'What is the relationship between the radius and diameter of a circle?',
+                        'options': ['Diameter = 2 × radius', 'Radius = 2 × diameter', 'Diameter = radius²', 'They are equal'],
+                        'correct_answer': 'Diameter = 2 × radius',
+                        'difficulty': 'easy',
+                        'type': 'mcq'
+                    },
+                    {
+                        'question': 'What is the angle in a semicircle?',
+                        'options': ['45°', '60°', '90°', '180°'],
+                        'correct_answer': '90°',
+                        'difficulty': 'easy',
+                        'type': 'mcq'
+                    },
+                    {
+                        'question': 'Which theorem states that the angle subtended by an arc at the center is twice the angle subtended by the same arc at any point on the circle?',
+                        'options': ['Pythagorean theorem', 'Angle at center theorem', 'Inscribed angle theorem', 'Tangent theorem'],
+                        'correct_answer': 'Angle at center theorem',
+                        'difficulty': 'easy',
+                        'type': 'mcq'
+                    },
+                    # Medium (3 questions): Circle theorem applications - Structured
+                    {
+                        'question': 'In a circle, if an inscribed angle is 35°, what is the central angle subtending the same arc?',
+                        'correct_answer': 'Central angle = 2 × inscribed angle = 2 × 35° = 70°',
+                        'difficulty': 'medium',
+                        'type': 'structured'
+                    },
+                    {
+                        'question': 'A chord is 8 cm from the center of a circle with radius 10 cm. Find the length of the chord.',
+                        'correct_answer': 'Using Pythagorean theorem: half chord = √(10² - 8²) = √36 = 6 cm\nFull chord length = 2 × 6 = 12 cm',
+                        'difficulty': 'medium',
+                        'type': 'structured'
+                    },
+                    {
+                        'question': 'Two tangents from an external point to a circle form an angle of 60°. If the radius is 5 cm, find the distance from the external point to the center.',
+                        'correct_answer': 'Using tangent properties: distance = radius/sin(30°) = 5/0.5 = 10 cm',
+                        'difficulty': 'medium',
+                        'type': 'structured'
+                    },
+                    # Hard (3 questions): Complex circle problems - Structured  
+                    {
+                        'question': 'Prove that opposite angles in a cyclic quadrilateral are supplementary.',
+                        'correct_answer': 'In cyclic quadrilateral ABCD: ∠A + ∠C = 180° and ∠B + ∠D = 180°\nThis is because each pair subtends arcs that complete the full circle (360°), so inscribed angles sum to 180°.',
+                        'difficulty': 'hard',
+                        'type': 'structured'
+                    },
+                    {
+                        'question': 'A tangent and a secant are drawn to a circle from the same external point. If the tangent length is 12 cm and the external segment of the secant is 8 cm, find the total length of the secant.',
+                        'correct_answer': 'Using tangent-secant theorem: tangent² = external segment × whole secant\n12² = 8 × whole secant\n144 = 8 × whole secant\nWhole secant = 18 cm',
+                        'difficulty': 'hard',
+                        'type': 'structured'
+                    },
+                    {
+                        'question': 'In a circle with center O, chord AB subtends an angle of 120° at the center. If the radius is 6 cm, find the area of the sector AOB.',
+                        'correct_answer': 'Area of sector = (θ/360°) × πr²\nArea = (120°/360°) × π × 6²\nArea = (1/3) × π × 36 = 12π cm²',
                         'difficulty': 'hard',
                         'type': 'structured'
                     }

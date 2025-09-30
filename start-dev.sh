@@ -1,7 +1,27 @@
 #!/bin/bash
 
+# ===============================================
 # Nurture App Development Startup Script
-echo "🌱 Starting Nurture Development Environment..."
+# ===============================================
+# 
+# Multiple modes available:
+# • Default: Mixed logs (original behavior)
+# • tmux:    Split-screen with separated logs
+#
+# Usage: 
+#   ./start-dev.sh         (default mode)
+#   ./start-dev.sh tmux    (split-screen mode)
+#   ./start-dev-tmux.sh    (direct tmux mode)
+# ===============================================
+
+# Check for tmux mode
+if [[ "$1" == "tmux" ]]; then
+    echo "🔄 Switching to tmux mode..."
+    exec ./start-dev-tmux.sh
+fi
+
+echo "🌱 Starting Nurture Development Environment (default mode)..."
+echo "💡 Tip: Use './start-dev.sh tmux' for split-screen with separated logs"
 
 # Store the root directory
 ROOT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"

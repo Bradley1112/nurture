@@ -26,7 +26,19 @@
       "Bash(aws:*)",
       "Bash(pkill:*)",
       "Bash(lsof:*)",
-      "Bash(npm run start:*)"
+      "Bash(npm run start:*)",
+      "Bash(md5:*)",
+      "Bash(mkdir:*)",
+      "Bash(mv:*)",
+      "Bash(rm:*)",
+      "Bash(cp:*)",
+      "Bash(AWS_ACCESS_KEY_ID=AKIA55LMMZKKB2OQ7JYB AWS_SECRET_ACCESS_KEY=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 AWS_REGION=us-east-1 aws sts get-caller-identity)",
+      "Bash(brew install:*)",
+      "Bash(./start-dev-tmux.sh:*)",
+      "Bash(tmux list-sessions:*)",
+      "Bash(tmux kill-session:*)",
+      "Bash(tmux capture-pane:*)",
+      "Bash(tmux send-keys:*)"
     ],
     "deny": [],
     "ask": []

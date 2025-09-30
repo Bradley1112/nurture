@@ -182,7 +182,8 @@ const calculateTimeDistribution = (chatLog) => {
     }
     phases[phase].messageCount++;
     phases[phase].endTime = Math.min(phases[phase].endTime, chat.time_remaining || 0);
-    phases[phase].duration = phases[phase].startTime - phases[phase].endTime;
+    // Fix: Calculate actual elapsed time, not time remaining difference
+    phases[phase].duration = Math.max(0, phases[phase].startTime - phases[phase].endTime);
   });
   
   return phases;

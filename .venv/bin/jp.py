@@ -1,4 +1,4 @@
-#!/Users/gabrielyap/nurture/.venv/bin/python
+#!/Users/bradleygoh/nurture/.venv/bin/python3.13
 
 import sys
 import json

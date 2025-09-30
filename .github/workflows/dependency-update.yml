@@ -1,0 +1,121 @@
+name: 🔄 Dependency Updates
+
+on:
+  schedule:
+    # Run every Monday at 9 AM UTC
+    - cron: '0 9 * * 1'
+  workflow_dispatch: # Allow manual trigger
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  update-dependencies:
+    name: 🔄 Update Dependencies
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        dependency-type: [python, node]
+
+    steps:
+      - name: 📥 Checkout Code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 🐍 Setup Python (for Python dependencies)
+        if: matrix.dependency-type == 'python'
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: 📦 Setup Node.js (for Node dependencies)
+        if: matrix.dependency-type == 'node'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18.x'
+
+      - name: 🔄 Update Python Dependencies
+        if: matrix.dependency-type == 'python'
+        run: |
+          cd backend
+          pip install --upgrade pip pip-tools
+          pip-compile --upgrade requirements.in
+          
+          # Check if there are changes
+          if git diff --quiet requirements.txt; then
+            echo "No Python dependency updates available"
+            echo "HAS_CHANGES=false" >> $GITHUB_ENV
+          else
+            echo "Python dependencies updated"
+            echo "HAS_CHANGES=true" >> $GITHUB_ENV
+            echo "CHANGES_TYPE=python" >> $GITHUB_ENV
+          fi
+
+      - name: 🔄 Update Node.js Dependencies
+        if: matrix.dependency-type == 'node'
+        run: |
+          cd nurture-app
+          npm update
+          
+          # Check if there are changes
+          if git diff --quiet package-lock.json; then
+            echo "No Node.js dependency updates available"
+            echo "HAS_CHANGES=false" >> $GITHUB_ENV
+          else
+            echo "Node.js dependencies updated"
+            echo "HAS_CHANGES=true" >> $GITHUB_ENV
+            echo "CHANGES_TYPE=node" >> $GITHUB_ENV
+          fi
+
+      - name: 🧪 Test Updated Dependencies
+        if: env.HAS_CHANGES == 'true'
+        run: |
+          if [[ "${{ env.CHANGES_TYPE }}" == "python" ]]; then
+            cd backend
+            pip install -r requirements.txt
+            python -m pytest tests/ --tb=short || exit 1
+          elif [[ "${{ env.CHANGES_TYPE }}" == "node" ]]; then
+            cd nurture-app
+            npm ci
+            npm test -- --watchAll=false || exit 1
+          fi
+
+      - name: 📝 Create Pull Request
+        if: env.HAS_CHANGES == 'true'
+        uses: peter-evans/create-pull-request@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "🔄 Update ${{ env.CHANGES_TYPE }} dependencies"
+          title: "🔄 Automated ${{ env.CHANGES_TYPE }} dependency update"
+          body: |
+            ## 🔄 Automated Dependency Update
+            
+            This PR updates ${{ env.CHANGES_TYPE }} dependencies to their latest versions.
+            
+            ### 📊 Changes
+            - Dependencies have been automatically updated
+            - All tests are passing
+            
+            ### ✅ Checklist
+            - [x] Dependencies updated
+            - [x] Tests passing
+            - [ ] Manual review needed
+            
+            **Note:** This PR was created automatically. Please review the changes before merging.
+          branch: "dependency-update-${{ env.CHANGES_TYPE }}-${{ github.run_id }}"
+          labels: |
+            dependencies
+            automated
+            ${{ env.CHANGES_TYPE }}
+
+      - name: 📣 Notify on Slack
+        if: env.HAS_CHANGES == 'true'
+        uses: 8398a7/action-slack@v3
+        with:
+          status: success
+          text: "🔄 New dependency update PR created for ${{ env.CHANGES_TYPE }} dependencies!"
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}

@@ -12,10 +12,26 @@ Nurture is an AI-powered educational platform for Singapore O-Level students fea
 ## Development Commands
 
 ### Quick Start
+
+#### Standard Mode (Mixed Logs)
 ```bash
 # Start full development environment (frontend + backend)
 ./start-dev.sh
 ```
+
+#### Professional Mode (Split Screen) - Recommended ⭐
+```bash
+# Split-screen with separated backend/frontend logs
+./start-dev.sh tmux
+# OR directly:
+./start-dev-tmux.sh
+```
+
+**Benefits of tmux mode:**
+- Clean backend logs on left pane (perfect for debugging)
+- Frontend logs on right pane
+- Professional layout for demos and development
+- Easy pane switching with Ctrl-b + Arrow Keys
 
 ### Individual Services
 ```bash
@@ -34,6 +50,21 @@ npm start
 # Run tests
 python test-app.py              # Backend integration tests
 python test-integration.py     # Full app flow tests
+```
+
+### tmux Session Management
+```bash
+# View active sessions
+tmux list-sessions
+
+# Attach to nurture session
+tmux attach -t nurture
+
+# Kill nurture session
+tmux kill-session -t nurture
+
+# Detach from session (keep it running)
+Ctrl-b + d
 ```
 
 ### Frontend (React)

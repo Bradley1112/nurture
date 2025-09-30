@@ -1,0 +1,462 @@
+name: 🐳 Docker Management
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'backend/**'
+      - 'nurture-app/**'
+      - 'Dockerfile*'
+      - 'docker-compose*.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'backend/**'
+      - 'nurture-app/**'
+      - 'Dockerfile*'
+      - 'docker-compose*.yml'
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      build_type:
+        description: 'Build type'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - 'all'
+          - 'backend'
+          - 'frontend'
+
+env:
+  REGISTRY: ghcr.io
+  BACKEND_IMAGE: ghcr.io/${{ github.repository }}/backend
+  FRONTEND_IMAGE: ghcr.io/${{ github.repository }}/frontend
+
+jobs:
+  # ==========================================
+  # 🔍 DOCKER SECURITY & VALIDATION
+  # ==========================================
+  docker-security:
+    name: 🔍 Docker Security Scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Checkout Code
+        uses: actions/checkout@v4
+
+      - name: 🔍 Scan Dockerfiles with Hadolint
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: backend/Dockerfile
+          failure-threshold: warning
+
+      - name: 🔍 Scan Frontend Dockerfile
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: nurture-app/Dockerfile
+          failure-threshold: warning
+
+      - name: 🔒 Check for Secrets in Dockerfiles
+        run: |
+          echo "🔒 Scanning Dockerfiles for potential secrets..."
+          
+          if grep -r -i "password\|secret\|key\|token" backend/Dockerfile nurture-app/Dockerfile 2>/dev/null; then
+            echo "❌ Potential secrets found in Dockerfiles!"
+            exit 1
+          else
+            echo "✅ No secrets detected in Dockerfiles"
+          fi
+
+  # ==========================================
+  # 🏗️ BUILD DOCKER IMAGES
+  # ==========================================
+  build-images:
+    name: 🏗️ Build Docker Images
+    runs-on: ubuntu-latest
+    needs: docker-security
+
+    strategy:
+      matrix:
+        include:
+          - component: backend
+            dockerfile: backend/Dockerfile
+            context: backend
+          - component: frontend
+            dockerfile: nurture-app/Dockerfile
+            context: nurture-app
+
+    outputs:
+      backend-digest: ${{ steps.backend-build.outputs.digest }}
+      frontend-digest: ${{ steps.frontend-build.outputs.digest }}
+
+    steps:
+      - name: 📥 Checkout Code
+        uses: actions/checkout@v4
+
+      - name: 🐳 Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          driver-opts: image=moby/buildkit:master
+
+      - name: 🔑 Log in to Container Registry
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 🏷️ Extract Metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            ${{ matrix.component == 'backend' && env.BACKEND_IMAGE || env.FRONTEND_IMAGE }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=sha,prefix={{branch}}-
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: 🏗️ Build and Push ${{ matrix.component }}
+        id: build
+        uses: docker/build-push-action@v5
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          platforms: linux/amd64,linux/arm64
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            BUILDKIT_INLINE_CACHE=1
+            BUILD_DATE=${{ steps.meta.outputs.created }}
+            VCS_REF=${{ github.sha }}
+            VERSION=${{ steps.meta.outputs.version }}
+
+      - name: 📋 Set Output for Backend
+        if: matrix.component == 'backend'
+        id: backend-build
+        run: echo "digest=${{ steps.build.outputs.digest }}" >> $GITHUB_OUTPUT
+
+      - name: 📋 Set Output for Frontend  
+        if: matrix.component == 'frontend'
+        id: frontend-build
+        run: echo "digest=${{ steps.build.outputs.digest }}" >> $GITHUB_OUTPUT
+
+  # ==========================================
+  # 🧪 TEST DOCKER IMAGES
+  # ==========================================
+  test-images:
+    name: 🧪 Test Docker Images
+    runs-on: ubuntu-latest
+    needs: build-images
+    if: github.event_name != 'pull_request'
+
+    strategy:
+      matrix:
+        component: [backend, frontend]
+
+    steps:
+      - name: 📥 Checkout Code
+        uses: actions/checkout@v4
+
+      - name: 🔑 Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 🧪 Test Backend Container
+        if: matrix.component == 'backend'
+        run: |
+          # Pull the built image
+          IMAGE="${{ env.BACKEND_IMAGE }}:${{ github.sha }}"
+          docker pull "$IMAGE"
+          
+          # Run container with health check
+          CONTAINER_ID=$(docker run -d \
+            -p 8000:8000 \
+            -e TESTING=true \
+            -e FLASK_SECRET_KEY=test-secret \
+            "$IMAGE")
+          
+          # Wait for container to start
+          sleep 15
+          
+          # Health check
+          if curl -f http://localhost:8000/api/health; then
+            echo "✅ Backend container health check passed"
+          else
+            echo "❌ Backend container health check failed"
+            docker logs "$CONTAINER_ID"
+            exit 1
+          fi
+          
+          # Cleanup
+          docker stop "$CONTAINER_ID"
+          docker rm "$CONTAINER_ID"
+
+      - name: 🧪 Test Frontend Container
+        if: matrix.component == 'frontend'
+        run: |
+          # Pull the built image
+          IMAGE="${{ env.FRONTEND_IMAGE }}:${{ github.sha }}"
+          docker pull "$IMAGE"
+          
+          # Run container
+          CONTAINER_ID=$(docker run -d -p 3000:3000 "$IMAGE")
+          
+          # Wait for container to start
+          sleep 20
+          
+          # Health check
+          if curl -f http://localhost:3000; then
+            echo "✅ Frontend container health check passed"
+          else
+            echo "❌ Frontend container health check failed"
+            docker logs "$CONTAINER_ID"
+            exit 1
+          fi
+          
+          # Cleanup
+          docker stop "$CONTAINER_ID"
+          docker rm "$CONTAINER_ID"
+
+  # ==========================================
+  # 🔍 SECURITY SCANNING
+  # ==========================================
+  security-scan:
+    name: 🔍 Container Security Scan
+    runs-on: ubuntu-latest
+    needs: build-images
+    if: github.event_name != 'pull_request'
+
+    strategy:
+      matrix:
+        component: [backend, frontend]
+
+    steps:
+      - name: 🔑 Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 🔍 Run Trivy Vulnerability Scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ matrix.component == 'backend' && env.BACKEND_IMAGE || env.FRONTEND_IMAGE }}:${{ github.sha }}
+          format: 'sarif'
+          output: 'trivy-${{ matrix.component }}.sarif'
+
+      - name: 📊 Upload Trivy Results
+        uses: github/codeql-action/upload-sarif@v2
+        if: always()
+        with:
+          sarif_file: 'trivy-${{ matrix.component }}.sarif'
+
+      - name: 🔍 Run Snyk Container Security Scan
+        continue-on-error: true
+        uses: snyk/actions/docker@master
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        with:
+          image: ${{ matrix.component == 'backend' && env.BACKEND_IMAGE || env.FRONTEND_IMAGE }}:${{ github.sha }}
+          args: --severity-threshold=high
+
+  # ==========================================
+  # 🚀 DOCKER COMPOSE TESTING
+  # ==========================================
+  docker-compose-test:
+    name: 🚀 Docker Compose Integration Test
+    runs-on: ubuntu-latest
+    needs: [build-images, test-images]
+
+    steps:
+      - name: 📥 Checkout Code
+        uses: actions/checkout@v4
+
+      - name: 🔑 Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 📝 Create Docker Compose Override
+        run: |
+          cat > docker-compose.override.yml << EOF
+          version: '3.8'
+          services:
+            backend:
+              image: ${{ env.BACKEND_IMAGE }}:${{ github.sha }}
+              environment:
+                - TESTING=true
+                - FLASK_SECRET_KEY=test-secret
+            frontend:
+              image: ${{ env.FRONTEND_IMAGE }}:${{ github.sha }}
+            redis:
+              image: redis:7-alpine
+              ports:
+                - "6379:6379"
+          EOF
+
+      - name: 🚀 Start Full Stack with Docker Compose
+        run: |
+          docker-compose -f docker-compose.yml -f docker-compose.override.yml up -d
+          
+          # Wait for services to be ready
+          sleep 30
+          
+          # Check service health
+          docker-compose ps
+
+      - name: 🧪 Run Integration Tests
+        run: |
+          # Test backend API
+          curl -f http://localhost:8000/api/health
+          curl -f http://localhost:8000/api/subjects
+          
+          # Test frontend
+          curl -f http://localhost:3000
+          
+          echo "✅ Docker Compose integration tests passed"
+
+      - name: 🧹 Cleanup Docker Compose
+        if: always()
+        run: |
+          docker-compose -f docker-compose.yml -f docker-compose.override.yml down -v
+          docker system prune -f
+
+  # ==========================================
+  # 🏷️ TAG RELEASE IMAGES
+  # ==========================================
+  tag-release:
+    name: 🏷️ Tag Release Images
+    runs-on: ubuntu-latest
+    needs: [test-images, security-scan, docker-compose-test]
+    if: github.event_name == 'release'
+
+    strategy:
+      matrix:
+        component: [backend, frontend]
+
+    steps:
+      - name: 🔑 Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 🏷️ Tag Release Images
+        run: |
+          IMAGE_NAME=${{ matrix.component == 'backend' && env.BACKEND_IMAGE || env.FRONTEND_IMAGE }}
+          RELEASE_TAG=${{ github.event.release.tag_name }}
+          
+          # Pull the latest build
+          docker pull "${IMAGE_NAME}:${{ github.sha }}"
+          
+          # Tag with release version
+          docker tag "${IMAGE_NAME}:${{ github.sha }}" "${IMAGE_NAME}:${RELEASE_TAG}"
+          docker tag "${IMAGE_NAME}:${{ github.sha }}" "${IMAGE_NAME}:latest"
+          
+          # Push release tags
+          docker push "${IMAGE_NAME}:${RELEASE_TAG}"
+          docker push "${IMAGE_NAME}:latest"
+
+  # ==========================================
+  # 🧹 CLEANUP OLD IMAGES
+  # ==========================================
+  cleanup:
+    name: 🧹 Cleanup Old Images
+    runs-on: ubuntu-latest
+    needs: [tag-release]
+    if: always() && github.ref == 'refs/heads/main'
+
+    steps:
+      - name: 🔑 Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 🗑️ Delete Old Untagged Images
+        uses: actions/delete-package-versions@v4
+        with:
+          package-name: 'backend'
+          package-type: 'container'
+          min-versions-to-keep: 10
+          delete-only-untagged-versions: true
+
+      - name: 🗑️ Delete Old Frontend Images
+        uses: actions/delete-package-versions@v4
+        with:
+          package-name: 'frontend'
+          package-type: 'container'
+          min-versions-to-keep: 10
+          delete-only-untagged-versions: true
+
+  # ==========================================
+  # 📊 DOCKER METRICS & REPORTING
+  # ==========================================
+  metrics:
+    name: 📊 Docker Metrics
+    runs-on: ubuntu-latest
+    needs: [build-images, test-images]
+    if: always()
+
+    steps:
+      - name: 📥 Checkout Code
+        uses: actions/checkout@v4
+
+      - name: 📊 Generate Build Report
+        run: |
+          echo "## 🐳 Docker Build Report" > docker-report.md
+          echo "" >> docker-report.md
+          echo "### Build Information" >> docker-report.md
+          echo "- **Commit SHA**: ${{ github.sha }}" >> docker-report.md
+          echo "- **Branch**: ${{ github.ref_name }}" >> docker-report.md
+          echo "- **Build Date**: $(date -u)" >> docker-report.md
+          echo "" >> docker-report.md
+          
+          if [[ "${{ needs.build-images.result }}" == "success" ]]; then
+            echo "### ✅ Images Built Successfully" >> docker-report.md
+            echo "- Backend: ${{ env.BACKEND_IMAGE }}:${{ github.sha }}" >> docker-report.md
+            echo "- Frontend: ${{ env.FRONTEND_IMAGE }}:${{ github.sha }}" >> docker-report.md
+          else
+            echo "### ❌ Build Failed" >> docker-report.md
+            echo "Some images failed to build. Check the logs for details." >> docker-report.md
+          fi
+
+      - name: 📤 Upload Report
+        uses: actions/upload-artifact@v3
+        with:
+          name: docker-build-report
+          path: docker-report.md
+
+      - name: 📣 Notify Build Status
+        if: github.ref == 'refs/heads/main'
+        uses: 8398a7/action-slack@v3
+        with:
+          status: ${{ needs.build-images.result }}
+          text: |
+            🐳 **Docker Build Summary**
+            
+            **Status**: ${{ needs.build-images.result == 'success' && '✅ Success' || '❌ Failed' }}
+            **Branch**: ${{ github.ref_name }}
+            **Commit**: ${{ github.sha }}
+            
+            ${{ needs.build-images.result == 'success' && 'New Docker images are ready!' || 'Docker build failed. Check the logs.' }}
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}

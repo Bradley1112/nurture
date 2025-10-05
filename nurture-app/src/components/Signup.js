@@ -81,7 +81,7 @@ function Signup() {
 
   return (
     <div className="auth-container">
-      <div className="auth-card">
+      <div className="auth-card enhanced">
         {/* Progress Indicator */}
         <div style={{ 
           display: 'flex', 
@@ -115,117 +115,185 @@ function Signup() {
         {step === 1 ? (
           // Step 1: Basic Information
           <>
-            <h1>🌱 Start Growing</h1>
-            <p className="text-center mb-6" style={{opacity: 0.9}}>
+            <div className="auth-logo">🌱</div>
+            <h1 className="auth-heading">Start Growing</h1>
+            <p className="auth-subtitle">
               Create your account to begin
             </p>
-            <form onSubmit={handleStep1Submit}>
-              <input
-                type="text"
-                placeholder="🧑‍🎓 Your name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                required
-              />
-              <input
-                type="email"
-                placeholder="📧 Email address"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-              />
-              <input
-                type="password"
-                placeholder="🔒 Create password (min. 6 characters)"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                minLength="6"
-              />
-              <button type="submit" disabled={!name.trim() || !email.trim() || !password.trim()}>
-                {!name.trim() || !email.trim() || !password.trim() ? 
+            <form onSubmit={handleStep1Submit} className="auth-form">
+              <div className="input-group">
+                <label htmlFor="name" className="input-label">Full Name</label>
+                <div className="input-wrapper">
+                  <span className="input-icon">🧑‍🎓</span>
+                  <input
+                    id="name"
+                    type="text"
+                    placeholder="Your name"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    required
+                    aria-label="Full name"
+                  />
+                </div>
+              </div>
+
+              <div className="input-group">
+                <label htmlFor="signup-email" className="input-label">Email Address</label>
+                <div className="input-wrapper">
+                  <span className="input-icon">📧</span>
+                  <input
+                    id="signup-email"
+                    type="email"
+                    placeholder="Email address"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                    aria-label="Email address"
+                  />
+                </div>
+              </div>
+
+              <div className="input-group">
+                <label htmlFor="signup-password" className="input-label">Password</label>
+                <div className="input-wrapper">
+                  <span className="input-icon">🔒</span>
+                  <input
+                    id="signup-password"
+                    type="password"
+                    placeholder="Create password (min. 6 characters)"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                    minLength="6"
+                    aria-label="Password"
+                  />
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                className="auth-button"
+                disabled={!name.trim() || !email.trim() || !password.trim()}
+              >
+                {!name.trim() || !email.trim() || !password.trim() ?
                   '🌿 Fill all fields' : '➡️ Next: Academic Info'}
               </button>
-              {error && <p className="error">⚠️ {error}</p>}
+              {error && (
+                <div className="error-message" role="alert">
+                  <span className="error-icon">⚠️</span>
+                  <span>{error}</span>
+                </div>
+              )}
             </form>
           </>
         ) : (
           // Step 2: Academic Information
           <>
-            <h1>📚 Academic Details</h1>
-            <p className="text-center mb-6" style={{opacity: 0.9}}>
+            <div className="auth-logo">📚</div>
+            <h1 className="auth-heading">Academic Details</h1>
+            <p className="auth-subtitle">
               Tell us about your studies
             </p>
-            <form onSubmit={handleStep2Submit}>
-              <select 
-                value={level} 
-                onChange={(e) => setLevel(e.target.value)}
-                required
-                style={{appearance: 'none'}}
-              >
-                <option value="">📚 Select your level</option>
-                <option value="Sec 1">Secondary 1</option>
-                <option value="Sec 2">Secondary 2</option>
-                <option value="Sec 3">Secondary 3</option>
-                <option value="Sec 4">Secondary 4</option>
-              </select>
-              <input
-                type="date"
-                placeholder="📅 Select your next exam date"
-                value={examDate}
-                onChange={(e) => {
-                  const value = e.target.value;
-                  setExamDate(value);
-                  // Clear error when user selects a valid date
-                  if (error && validateDate(value)) {
-                    setError(null);
-                  }
-                }}
-                min={new Date().toISOString().split('T')[0]} // Set minimum date to today
-                required
-                style={{
-                  borderColor: examDate && !validateDate(examDate) ? 
-                    'var(--error-red)' : undefined
-                }}
-              />
-              <select 
-                value={targetYear} 
-                onChange={(e) => setTargetYear(e.target.value)}
-                required
-                style={{appearance: 'none'}}
-              >
-                <option value="">🎯 Target O-level year</option>
-                <option value="2025">2025</option>
-                <option value="2026">2026</option>
-                <option value="2027">2027</option>
-                <option value="2028">2028</option>
-              </select>
-              
+            <form onSubmit={handleStep2Submit} className="auth-form">
+              <div className="input-group">
+                <label htmlFor="level" className="input-label">Current Level</label>
+                <div className="input-wrapper">
+                  <span className="input-icon">📚</span>
+                  <select
+                    id="level"
+                    value={level}
+                    onChange={(e) => setLevel(e.target.value)}
+                    required
+                    style={{appearance: 'none', paddingLeft: '48px'}}
+                    aria-label="Current level"
+                  >
+                    <option value="">Select your level</option>
+                    <option value="Sec 1">Secondary 1</option>
+                    <option value="Sec 2">Secondary 2</option>
+                    <option value="Sec 3">Secondary 3</option>
+                    <option value="Sec 4">Secondary 4</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="input-group">
+                <label htmlFor="examDate" className="input-label">Next Exam Date</label>
+                <div className="input-wrapper">
+                  <span className="input-icon">📅</span>
+                  <input
+                    id="examDate"
+                    type="date"
+                    value={examDate}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      setExamDate(value);
+                      if (error && validateDate(value)) {
+                        setError(null);
+                      }
+                    }}
+                    min={new Date().toISOString().split('T')[0]}
+                    required
+                    style={{
+                      borderColor: examDate && !validateDate(examDate) ?
+                        'var(--error-red)' : undefined
+                    }}
+                    aria-label="Next exam date"
+                  />
+                </div>
+              </div>
+
+              <div className="input-group">
+                <label htmlFor="targetYear" className="input-label">Target O-Level Year</label>
+                <div className="input-wrapper">
+                  <span className="input-icon">🎯</span>
+                  <select
+                    id="targetYear"
+                    value={targetYear}
+                    onChange={(e) => setTargetYear(e.target.value)}
+                    required
+                    style={{appearance: 'none', paddingLeft: '48px'}}
+                    aria-label="Target O-level year"
+                  >
+                    <option value="">Target O-level year</option>
+                    <option value="2025">2025</option>
+                    <option value="2026">2026</option>
+                    <option value="2027">2027</option>
+                    <option value="2028">2028</option>
+                  </select>
+                </div>
+              </div>
+
               <div style={{ display: 'flex', gap: 'var(--space-4)', marginTop: 'var(--space-4)' }}>
-                <button 
-                  type="button" 
+                <button
+                  type="button"
                   onClick={goBackToStep1}
                   className="btn-secondary"
                   style={{ flex: 1 }}
                 >
                   ⬅️ Back
                 </button>
-                <button 
-                  type="submit" 
+                <button
+                  type="submit"
+                  className="auth-button"
                   disabled={!level || !examDate || !targetYear}
                   style={{ flex: 2 }}
                 >
-                  {!level || !examDate || !targetYear ? 
+                  {!level || !examDate || !targetYear ?
                     '🌿 Complete fields' : '🚀 Begin Learning Journey'}
                 </button>
               </div>
-              {error && <p className="error">⚠️ {error}</p>}
+              {error && (
+                <div className="error-message" role="alert">
+                  <span className="error-icon">⚠️</span>
+                  <span>{error}</span>
+                </div>
+              )}
             </form>
           </>
         )}
 
-        <p className="text-center mt-6" style={{fontSize: 'var(--text-sm)', opacity: 0.8}}>
-          Already growing with us? <a href="/login" style={{color: 'var(--vibrant-leaf)', textDecoration: 'none'}}>Sign in</a>
+        <p className="auth-footer">
+          Already growing with us? <a href="/login" className="auth-link">Sign in</a>
         </p>
       </div>
     </div>

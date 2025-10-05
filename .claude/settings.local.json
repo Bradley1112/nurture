@@ -38,7 +38,11 @@
       "Bash(tmux list-sessions:*)",
       "Bash(tmux kill-session:*)",
       "Bash(tmux capture-pane:*)",
-      "Bash(tmux send-keys:*)"
+      "Bash(tmux send-keys:*)",
+      "Bash(venvScripts:*)",
+      "Bash(.\\venv\\Scripts\\activate)",
+      "Bash(set PORT=3000)",
+      "Bash(npx:*)"
     ],
     "deny": [],
     "ask": []

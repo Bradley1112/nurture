@@ -265,29 +265,48 @@ function Dashboard({ user }) {
 
   return (
     <div
-      className="min-h-screen"
+      className="min-h-screen dashboard-container-main"
       style={{
         background: "linear-gradient(135deg, #1E2B22 0%, #0f1419 100%)",
         color: "#F5F5F5",
         paddingLeft: "20px",
         paddingRight: "20px",
+        paddingBottom: "80px",
+        overflowX: "hidden"
       }}
     >
       {/* Header Section */}
-      <div className="px-8 pt-12 pb-8">
-        <div className="max-w-7xl mx-auto text-center">
+      <div className="dashboard-header" style={{
+        padding: "40px 32px 24px",
+        textAlign: "center"
+      }}>
+        <div className="max-w-7xl mx-auto">
+          <div className="welcome-logo" style={{
+            fontSize: "40px",
+            marginBottom: "12px",
+            display: "inline-block"
+          }}>🌱</div>
           <h1
-            className="text-5xl font-bold mb-4"
+            className="dashboard-title"
             style={{
-              background: "linear-gradient(135deg, #49B85B, #6ee7b7)",
+              background: "linear-gradient(135deg, #A5D6A7 0%, #66BB6A 100%)",
               WebkitBackgroundClip: "text",
               WebkitTextFillColor: "transparent",
               backgroundClip: "text",
+              fontSize: "36px",
+              fontWeight: "700",
+              letterSpacing: "-0.5px",
+              marginBottom: "12px"
             }}
           >
-            Welcome Back, {getFirstName()}! 🌱
+            Welcome Back, {getFirstName()}!
           </h1>
-          <p className="text-xl text-gray-300 mb-8">
+          <p className="dashboard-subtitle" style={{
+            fontSize: "16px",
+            color: "rgba(255, 255, 255, 0.75)",
+            lineHeight: "1.5",
+            marginBottom: "0"
+          }}>
             Ready to nurture your knowledge and grow your expertise?
           </p>
         </div>
@@ -298,21 +317,83 @@ function Dashboard({ user }) {
         <div className="max-w-full mx-auto">
           <div className="mb-8">
 
-            {/* Mastery Level Legend */}
+            {/* Mastery Level Legend - Compact */}
             <div
-              className="p-4 rounded-2xl mb-6"
+              className="mastery-progression-card"
               style={{
-                background: "rgba(255, 255, 255, 0.05)",
-                border: "1px solid rgba(255, 255, 255, 0.1)",
+                background: "rgba(255, 255, 255, 0.03)",
+                border: "1px solid rgba(139, 195, 74, 0.15)",
+                borderRadius: "12px",
+                padding: "20px 32px",
+                margin: "24px auto",
+                maxWidth: "1000px",
                 backdropFilter: "blur(10px)",
               }}
             >
-              <h3 className="text-lg font-semibold text-white mb-4 text-center">
+              <h3 className="mastery-title" style={{
+                fontSize: "18px",
+                fontWeight: "600",
+                color: "#A5D6A7",
+                textAlign: "center",
+                marginBottom: "20px",
+                letterSpacing: "-0.3px"
+              }}>
                 Mastery Progression
               </h3>
-              <div className="text-center text-base text-white">
-                ⚪️ Not Evaluated → 🔴 Beginner → 🟠 Apprentice → 🟢 Pro → 🔵
-                Grand Master
+              <div className="mastery-levels" style={{
+                display: "flex",
+                justifyContent: "center",
+                alignItems: "center",
+                gap: "8px",
+                flexWrap: "wrap"
+              }}>
+                {[
+                  { emoji: "⚪️", label: "Not Evaluated", color: "#9ca3af" },
+                  { emoji: "🔴", label: "Beginner", color: "#ef4444" },
+                  { emoji: "🟠", label: "Apprentice", color: "#f59e0b" },
+                  { emoji: "🟢", label: "Pro", color: "#22c55e" },
+                  { emoji: "🔵", label: "Grand Master", color: "#3b82f6" }
+                ].map((level, index, array) => (
+                  <React.Fragment key={level.label}>
+                    <div style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "center",
+                      gap: "6px"
+                    }}>
+                      <div style={{
+                        width: "32px",
+                        height: "32px",
+                        borderRadius: "50%",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        fontSize: "16px",
+                        border: `2px solid ${level.color}`,
+                        background: `${level.color}20`
+                      }}>
+                        {level.emoji}
+                      </div>
+                      <span style={{
+                        fontSize: "10px",
+                        color: "rgba(255, 255, 255, 0.7)",
+                        textTransform: "uppercase",
+                        letterSpacing: "0.5px",
+                        fontWeight: "500"
+                      }}>
+                        {level.label}
+                      </span>
+                    </div>
+                    {index < array.length - 1 && (
+                      <div style={{
+                        width: "24px",
+                        height: "2px",
+                        background: "rgba(255, 255, 255, 0.2)",
+                        margin: "0 2px"
+                      }} />
+                    )}
+                  </React.Fragment>
+                ))}
               </div>
             </div>
           </div>
@@ -328,60 +409,85 @@ function Dashboard({ user }) {
             <>
               {/* Fixed 3-Column Layout for English, Math, Physics */}
               <div
-                className="grid gap-6 mb-8 w-full"
+                className="subjects-grid"
                 style={{
                   display: "grid",
-                  gridTemplateColumns: "repeat(3, 1fr)",
-                  gap: "24px",
+                  gridTemplateColumns: "repeat(auto-fit, minmax(400px, 1fr))",
+                  gap: "20px",
+                  padding: "0 24px",
+                  maxWidth: "1400px",
+                  margin: "24px auto"
                 }}
               >
                 {allSubjects.map((subject, index) => (
                   <div
                     key={subject.id}
-                    className="group relative w-full h-full flex flex-col"
+                    className="subject-card group relative w-full h-full flex flex-col"
                     style={{
-                      background: "rgba(56, 102, 65, 0.2)",
+                      background: "rgba(255, 255, 255, 0.03)",
                       backdropFilter: "blur(20px)",
-                      border: "1px solid rgba(73, 184, 91, 0.3)",
-                      borderRadius: "24px",
-                      padding: "32px",
-                      transition: "all 0.3s ease",
-                      minHeight: "400px",
+                      border: "1px solid rgba(139, 195, 74, 0.2)",
+                      borderRadius: "16px",
+                      padding: "24px",
+                      transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+                      minHeight: "350px",
+                      animation: `slideInUp 0.6s ease-out ${0.1 + index * 0.1}s both`,
+                      boxShadow: "0 4px 6px rgba(0, 0, 0, 0.1), 0 2px 4px rgba(0, 0, 0, 0.06)"
                     }}
                     onMouseEnter={(e) => {
-                      e.currentTarget.style.transform = "translateY(-8px)";
+                      e.currentTarget.style.transform = "translateY(-6px)";
                       e.currentTarget.style.boxShadow =
-                        "0 20px 40px rgba(73, 184, 91, 0.2)";
+                        "0 20px 40px rgba(0, 0, 0, 0.3), 0 8px 16px rgba(0, 0, 0, 0.2)";
                       e.currentTarget.style.borderColor =
-                        "rgba(73, 184, 91, 0.5)";
+                        "rgba(139, 195, 74, 0.4)";
                     }}
                     onMouseLeave={(e) => {
                       e.currentTarget.style.transform = "translateY(0)";
-                      e.currentTarget.style.boxShadow = "none";
+                      e.currentTarget.style.boxShadow = "0 4px 6px rgba(0, 0, 0, 0.1), 0 2px 4px rgba(0, 0, 0, 0.06)";
                       e.currentTarget.style.borderColor =
-                        "rgba(73, 184, 91, 0.3)";
+                        "rgba(139, 195, 74, 0.2)";
                     }}
                   >
-                    {/* Subject Header */}
-                    <div className="mb-6">
-                      <div className="flex items-center justify-between mb-3">
-                        <div className="flex items-center">
-                          <div>
-                            <h3 className="text-xl font-bold text-white leading-tight">
-                              {subject.name.split("(")[0].trim()}
-                            </h3>
-                            <p className="text-sm text-gray-400">
-                              ({subject.name.match(/\(([^)]+)\)/)?.[1] || ""})
-                            </p>
-                          </div>
+                    {/* Subject Header - Enhanced */}
+                    <div style={{ marginBottom: "20px" }}>
+                      <div className="flex items-start justify-between" style={{ marginBottom: "12px" }}>
+                        <div className="flex-1">
+                          <h3 style={{
+                            color: "#C5E1A5",
+                            fontSize: "24px",
+                            fontWeight: "700",
+                            marginBottom: "8px",
+                            lineHeight: "1.2"
+                          }}>
+                            {subject.name.split("(")[0].trim()}
+                          </h3>
+                          <p style={{
+                            color: "rgba(255, 255, 255, 0.5)",
+                            fontSize: "13px",
+                            fontWeight: "400",
+                            marginBottom: "0"
+                          }}>
+                            {subject.name.match(/\(([^)]+)\)/)?.[1] || ""}
+                          </p>
                         </div>
-                        <div className="text-right">
-                          <div className="text-sm text-gray-400">Topics</div>
-                          <div className="text-2xl font-bold text-white">
-                            {subject.topics.length}
-                          </div>
+                        <div style={{
+                          background: "rgba(139, 195, 74, 0.15)",
+                          border: "1px solid rgba(139, 195, 74, 0.3)",
+                          padding: "6px 12px",
+                          borderRadius: "16px",
+                          textAlign: "center",
+                          fontSize: "12px",
+                          fontWeight: "600",
+                          color: "#A5D6A7"
+                        }}>
+                          {subject.topics.length} {subject.topics.length === 1 ? 'Topic' : 'Topics'}
                         </div>
                       </div>
+                      <div style={{
+                        height: "1px",
+                        background: "rgba(255, 255, 255, 0.1)",
+                        margin: "16px 0"
+                      }} />
                     </div>
 
                     {/* Topics List */}
@@ -398,103 +504,86 @@ function Dashboard({ user }) {
                         return (
                           <div
                             key={topic.id}
-                            className="relative group/topic"
+                            className="topic-item relative"
                             style={{
-                              background: "rgba(255, 255, 255, 0.05)",
-                              border: "2px solid rgba(255, 255, 255, 0.1)",
-                              borderRadius: "16px",
-                              padding: "20px",
-                              transition: "all 0.3s ease",
-                            }}
-                            onMouseEnter={(e) => {
-                              e.currentTarget.style.borderColor =
-                                "rgba(255, 255, 255, 0.2)";
-                              e.currentTarget.style.transform = "scale(1.02)";
-                            }}
-                            onMouseLeave={(e) => {
-                              e.currentTarget.style.borderColor =
-                                "rgba(255, 255, 255, 0.1)";
-                              e.currentTarget.style.transform = "scale(1)";
+                              padding: "20px 0",
+                              borderBottom: subject.topics.indexOf(topic) === subject.topics.length - 1 ? "none" : "1px solid rgba(255, 255, 255, 0.06)",
+                              transition: "all 0.2s ease",
                             }}
                           >
-                            <div className="flex items-start justify-between">
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center space-x-3 mb-3">
-                                  <h4 className="font-semibold text-white text-sm leading-tight">
-                                    {topic.name}
-                                  </h4>
-                                </div>
-
-                                <div>
-                                  <div className="mb-4">
-                                    <span
-                                      style={{
-                                        padding: "8px 16px",
-                                        fontSize: "14px",
-                                        backgroundColor: colors.bg,
-                                        color: colors.text,
-                                        border: `3px solid ${colors.border}`,
-                                        borderRadius: "25px",
-                                        textShadow:
-                                          "0 1px 3px rgba(0, 0, 0, 0.9)",
-                                        display: "inline-block",
-                                        fontWeight: "bold",
-                                        letterSpacing: "0.5px",
-                                        boxShadow: `0 0 15px ${colors.dot}40`,
-                                        minWidth: "120px",
-                                        textAlign: "center",
-                                      }}
-                                    >
-                                      {topicData.expertiseLevel
-                                        .charAt(0)
-                                        .toUpperCase() +
-                                        topicData.expertiseLevel
-                                          .slice(1)
-                                          .toLowerCase()}
-                                    </span>
-                                  </div>
-                                  {topicData.lastStudied && (
-                                    <div className="text-xs text-gray-400">
-                                      Last studied:{" "}
-                                      {new Date(
-                                        topicData.lastStudied.seconds * 1000
-                                      ).toLocaleDateString()}
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
+                            <div className="flex items-start justify-between" style={{ marginBottom: "16px" }}>
+                              <h4 style={{
+                                fontSize: "17px",
+                                fontWeight: "600",
+                                color: "#C5E1A5",
+                                flex: 1,
+                                lineHeight: "1.4",
+                                paddingRight: "16px"
+                              }}>
+                                {topic.name}
+                              </h4>
+                              <span
+                                className="status-badge"
+                                style={{
+                                  padding: "4px 10px",
+                                  fontSize: "11px",
+                                  textTransform: "uppercase",
+                                  letterSpacing: "0.5px",
+                                  borderRadius: "6px",
+                                  fontWeight: "600",
+                                  backgroundColor: colors.bg,
+                                  color: colors.text,
+                                  border: `1px solid ${colors.border}`,
+                                  whiteSpace: "nowrap",
+                                  marginLeft: "12px"
+                                }}
+                              >
+                                {topicData.expertiseLevel}
+                              </span>
                             </div>
+
+                            {topicData.lastStudied && (
+                              <div className="text-xs mb-3" style={{
+                                color: "rgba(255, 255, 255, 0.5)"
+                              }}>
+                                Last studied: {new Date(topicData.lastStudied.seconds * 1000).toLocaleDateString()}
+                              </div>
+                            )}
 
                             {/* Action Button */}
                             <button
-                              onClick={() =>
-                                handleStartStudying(subject.id, topic.id)
-                              }
-                              className="w-full mt-4 px-4 py-3 font-semibold rounded-xl transition-all duration-300 flex items-center justify-center space-x-2"
+                              onClick={() => handleStartStudying(subject.id, topic.id)}
+                              className="topic-action-button"
                               style={{
-                                background:
-                                  "linear-gradient(135deg, #49B85B 0%, #22c55e 100%)",
-                                color: "#1E2B22",
-                                boxShadow: "0 4px 12px rgba(73, 184, 91, 0.3)",
+                                width: "100%",
+                                marginTop: "16px",
+                                padding: "12px 24px",
+                                fontSize: "15px",
+                                fontWeight: "600",
+                                background: "linear-gradient(135deg, #66BB6A 0%, #4CAF50 100%)",
+                                color: "white",
+                                border: "none",
+                                borderRadius: "10px",
+                                cursor: "pointer",
+                                transition: "all 0.2s ease",
+                                display: "inline-flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                gap: "8px",
+                                boxShadow: "0 2px 8px rgba(76, 175, 80, 0.3)",
                               }}
                               onMouseEnter={(e) => {
-                                e.currentTarget.style.transform =
-                                  "translateY(-2px)";
-                                e.currentTarget.style.boxShadow =
-                                  "0 8px 20px rgba(73, 184, 91, 0.4)";
+                                e.currentTarget.style.background = "#9CCC65";
+                                e.currentTarget.style.transform = "translateX(2px)";
+                                e.currentTarget.style.boxShadow = "0 4px 12px rgba(76, 175, 80, 0.4)";
                               }}
                               onMouseLeave={(e) => {
-                                e.currentTarget.style.transform =
-                                  "translateY(0)";
-                                e.currentTarget.style.boxShadow =
-                                  "0 4px 12px rgba(73, 184, 91, 0.3)";
+                                e.currentTarget.style.background = "linear-gradient(135deg, #66BB6A 0%, #4CAF50 100%)";
+                                e.currentTarget.style.transform = "translateX(0)";
+                                e.currentTarget.style.boxShadow = "0 2px 8px rgba(76, 175, 80, 0.3)";
                               }}
                             >
-                              <span>
-                                {topicData.isEvaluated
-                                  ? "📚 Continue Studying"
-                                  : "🚀 Begin Studying"}
-                              </span>
+                              <span>{topicData.isEvaluated ? "📚 Continue" : "🚀 Begin"}</span>
                             </button>
                           </div>
                         );
@@ -504,51 +593,96 @@ function Dashboard({ user }) {
                 ))}
               </div>
 
-              {/* Call to Action for New Users */}
+              {/* Call to Action for New Users - REDESIGNED */}
               {Object.values(evaluatedTopics).every((subject) =>
                 Object.values(subject || {}).every(
                   (topic) => !topic.isEvaluated
                 )
               ) && (
-                <div className="text-center py-16">
-                  <div
-                    className="max-w-2xl mx-auto p-12 rounded-3xl"
-                    style={{
-                      background:
-                        "linear-gradient(135deg, rgba(73, 184, 91, 0.1) 0%, rgba(34, 197, 94, 0.05) 100%)",
-                      border: "2px dashed rgba(73, 184, 91, 0.3)",
-                      backdropFilter: "blur(20px)",
-                    }}
-                  >
-                    <div className="text-6xl mb-6">🌱</div>
-                    <h3 className="text-3xl font-bold text-white mb-4">
+                <div className="cta-section" style={{
+                  border: "2px solid rgba(139, 195, 74, 0.25)",
+                  borderRadius: "24px",
+                  background: "rgba(139, 195, 74, 0.04)",
+                  maxWidth: "1000px",
+                  margin: "80px auto 0",
+                  padding: "60px 48px",
+                  textAlign: "center",
+                  position: "relative",
+                  overflow: "hidden",
+                  boxShadow: "0 8px 24px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.05)"
+                }}>
+                  {/* Gradient Overlay */}
+                  <div style={{
+                    content: '',
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    background: "radial-gradient(circle at center, rgba(139, 195, 74, 0.08) 0%, transparent 70%)",
+                    pointerEvents: 'none',
+                    zIndex: 0
+                  }} />
+
+                  <div style={{ position: 'relative', zIndex: 1 }}>
+                    <div className="cta-icon" style={{
+                      fontSize: "56px",
+                      marginBottom: "24px",
+                      display: "inline-block",
+                      filter: "drop-shadow(0 0 24px rgba(139, 195, 74, 0.4))",
+                      animation: "float 3s ease-in-out infinite"
+                    }}>🌱</div>
+
+                    <h3 style={{
+                      fontSize: "36px",
+                      fontWeight: "700",
+                      marginBottom: "20px",
+                      background: "linear-gradient(135deg, #A5D6A7 0%, #66BB6A 100%)",
+                      WebkitBackgroundClip: "text",
+                      WebkitTextFillColor: "transparent",
+                      backgroundClip: "text",
+                      letterSpacing: "-0.5px"
+                    }}>
                       Start Your Learning Adventure!
                     </h3>
-                    <p className="text-lg text-gray-300 mb-8">
+
+                    <p style={{
+                      fontSize: "17px",
+                      color: "rgba(255, 255, 255, 0.75)",
+                      lineHeight: "1.7",
+                      maxWidth: "750px",
+                      margin: "0 auto 36px"
+                    }}>
                       Take our comprehensive evaluation quiz to discover your
                       current expertise levels and receive personalized study
                       recommendations.
                     </p>
+
                     <button
                       onClick={() => navigate("/quiz")}
-                      className="px-10 py-4 font-bold text-lg rounded-2xl transition-all duration-300"
+                      className="cta-button"
                       style={{
-                        background:
-                          "linear-gradient(135deg, #49B85B 0%, #22c55e 100%)",
-                        color: "#1E2B22",
-                        boxShadow: "0 8px 24px rgba(73, 184, 91, 0.4)",
+                        padding: "18px 56px",
+                        fontSize: "18px",
+                        fontWeight: "600",
+                        background: "linear-gradient(135deg, #66BB6A 0%, #8BC34A 100%)",
+                        color: "#1B3624",
+                        border: "none",
+                        borderRadius: "14px",
+                        cursor: "pointer",
+                        transition: "all 0.3s ease",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "12px",
+                        boxShadow: "0 6px 24px rgba(139, 195, 74, 0.35)"
                       }}
                       onMouseEnter={(e) => {
-                        e.currentTarget.style.transform =
-                          "translateY(-4px) scale(1.05)";
-                        e.currentTarget.style.boxShadow =
-                          "0 12px 32px rgba(73, 184, 91, 0.5)";
+                        e.currentTarget.style.transform = "translateY(-3px)";
+                        e.currentTarget.style.boxShadow = "0 8px 32px rgba(139, 195, 74, 0.45)";
                       }}
                       onMouseLeave={(e) => {
-                        e.currentTarget.style.transform =
-                          "translateY(0) scale(1)";
-                        e.currentTarget.style.boxShadow =
-                          "0 8px 24px rgba(73, 184, 91, 0.4)";
+                        e.currentTarget.style.transform = "translateY(0)";
+                        e.currentTarget.style.boxShadow = "0 6px 24px rgba(139, 195, 74, 0.35)";
                       }}
                     >
                       🎯 Start Evaluation Quiz

@@ -1224,7 +1224,8 @@ const StudySession = () => {
           background: "rgba(15, 20, 25, 0.95)",
           backdropFilter: "blur(12px)",
           borderBottom: "1px solid rgba(255, 255, 255, 0.1)",
-          boxShadow: "0 4px 12px rgba(0, 0, 0, 0.3)"
+          boxShadow: "0 4px 12px rgba(0, 0, 0, 0.3)",
+          marginTop: "18px"
         }}
       >
         <div className="flex justify-between items-center px-8 py-5">
@@ -1239,7 +1240,8 @@ const StudySession = () => {
                 border: "none",
                 boxShadow: "0 2px 8px rgba(239, 68, 68, 0.3)",
                 cursor: "pointer",
-                margin: "0 8px"
+                marginLeft: "8px",
+                marginRight: "16px"
               }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.transform = "translateY(-2px)";
@@ -1276,45 +1278,65 @@ const StudySession = () => {
             </div>
           </div>
 
-          {/* Right: Timer & Stats */}
-          <div className="flex items-center gap-4">
-            {/* Progress Stats */}
-            <div className="flex items-center gap-4 px-4 py-2 rounded-lg" style={{
-              backgroundColor: "rgba(255, 255, 255, 0.05)",
-              border: "1px solid rgba(255, 255, 255, 0.1)"
-            }}>
-              <div className="text-center">
-                <div className="text-sm font-bold" style={{ color: "#66BB6A" }}>
-                  {sessionData.studentProgress.conceptsLearned}
-                </div>
-                <div className="text-xs text-gray-400">Concepts</div>
-              </div>
-              <div className="h-8 w-px bg-gray-700"></div>
-              <div className="text-center">
-                <div className="text-sm font-bold" style={{ color: "#4ECDC4" }}>
-                  {sessionData.agentInteractions.length}
-                </div>
-                <div className="text-xs text-gray-400">Interactions</div>
+          {/* Right: Timer & Stats - Compact Separate Cards */}
+          <div style={{ display: "flex", flexDirection: "row", alignItems: "center", gap: "8px", flexWrap: "nowrap" }}>
+            {/* Concepts Card */}
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+                padding: "8px 12px",
+                borderRadius: "12px",
+                background: "rgba(255, 255, 255, 0.05)",
+                border: "1px solid rgba(255, 255, 255, 0.1)",
+                boxShadow: "0 2px 8px rgba(0, 0, 0, 0.2)",
+                whiteSpace: "nowrap"
+              }}
+            >
+              <span style={{ fontSize: "18px" }}>📚</span>
+              <div className="text-sm font-semibold" style={{ color: "#A5D6A7" }}>
+                {sessionData.studentProgress.conceptsLearned} Concepts
               </div>
             </div>
 
-            {/* Timer */}
+            {/* Interactions Card */}
             <div
-              className="px-5 py-3 rounded-lg"
               style={{
-                background: "linear-gradient(135deg, rgba(73, 184, 91, 0.15), rgba(102, 187, 106, 0.1))",
-                border: "2px solid #49B85B",
-                boxShadow: "0 4px 12px rgba(73, 184, 91, 0.2)"
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+                padding: "8px 12px",
+                borderRadius: "12px",
+                background: "rgba(255, 255, 255, 0.05)",
+                border: "1px solid rgba(255, 255, 255, 0.1)",
+                boxShadow: "0 2px 8px rgba(0, 0, 0, 0.2)",
+                whiteSpace: "nowrap"
               }}
             >
-              <div className="text-center">
-                <div className="text-2xl font-mono font-bold" style={{ color: "#A5D6A7" }}>
-                  {minutes < 10 ? `0${minutes}` : minutes}:
-                  {seconds < 10 ? `0${seconds}` : seconds}
-                </div>
-                <div className="text-xs text-gray-400 uppercase tracking-wider font-medium mt-1">
-                  {mode} Time
-                </div>
+              <span style={{ fontSize: "18px" }}>💬</span>
+              <div className="text-sm font-semibold" style={{ color: "#4ECDC4" }}>
+                {sessionData.agentInteractions.length} Interactions
+              </div>
+            </div>
+
+            {/* Timer Card */}
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+                padding: "8px 12px",
+                borderRadius: "12px",
+                background: "rgba(255, 255, 255, 0.05)",
+                border: "1px solid rgba(255, 255, 255, 0.1)",
+                boxShadow: "0 2px 8px rgba(0, 0, 0, 0.2)",
+                whiteSpace: "nowrap"
+              }}
+            >
+              <span style={{ fontSize: "18px" }}>⏱️</span>
+              <div className="text-sm font-mono font-semibold" style={{ color: "#FFE66D" }}>
+                {minutes < 10 ? `0${minutes}` : minutes}:{seconds < 10 ? `0${seconds}` : seconds} {mode} Time
               </div>
             </div>
           </div>
@@ -1508,7 +1530,7 @@ const StudySession = () => {
           padding: "1.5rem 2rem"
         }}
       >
-        <div className="max-w-5xl mx-auto">
+        <div className="max-w-4xl mx-auto">
           {/* Quick Action Chips - Improved Spacing */}
           {messages.length > 0 && (
             <div
@@ -1612,7 +1634,8 @@ const StudySession = () => {
               backgroundColor: "rgba(255, 255, 255, 0.03)",
               border: "2px solid rgba(255, 255, 255, 0.1)",
               boxShadow: "0 4px 12px rgba(0, 0, 0, 0.2)",
-              transition: "all 0.2s ease"
+              transition: "all 0.2s ease",
+              padding: "14px"
             }}
             onFocus={(e) => {
               e.currentTarget.style.borderColor = "#49B85B";
@@ -1640,58 +1663,66 @@ const StudySession = () => {
                   : "Type 'start' to begin your personalized study session..."
               }
               disabled={isOrchestratorThinking}
-              className="w-full p-4 pr-16 bg-transparent text-white placeholder-gray-500 focus:outline-none resize-none text-sm leading-6"
+              className="w-full bg-transparent text-white placeholder-gray-500 focus:outline-none resize-none text-sm leading-6"
               style={{
                 minHeight: "80px",
                 maxHeight: "200px",
                 fontFamily: "system-ui, -apple-system, sans-serif",
+                padding: "4px 120px 4px 4px"
               }}
               rows={3}
             />
 
-            {/* Send Button - Improved Size & Spacing */}
+            {/* Send Button - Elongated with Label */}
             <button
               onClick={() => handleStudentMessage(inputMessage)}
               disabled={!inputMessage.trim() || isOrchestratorThinking}
-              className="absolute bottom-4 right-4 p-3.5 rounded-xl font-medium transition-all duration-200"
+              className="absolute bottom-4 right-4 px-5 py-3 rounded-xl font-semibold transition-all duration-200 flex items-center gap-2"
               style={{
                 background: inputMessage.trim() && !isOrchestratorThinking
-                  ? "linear-gradient(135deg, #49B85B 0%, #66BB6A 100%)"
+                  ? "linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)"
                   : "rgba(255, 255, 255, 0.1)",
                 boxShadow: inputMessage.trim() && !isOrchestratorThinking
-                  ? "0 2px 8px rgba(73, 184, 91, 0.3)"
+                  ? "0 3px 12px rgba(59, 130, 246, 0.4)"
                   : "none",
                 opacity: inputMessage.trim() && !isOrchestratorThinking ? 1 : 0.4,
                 cursor: inputMessage.trim() && !isOrchestratorThinking ? "pointer" : "not-allowed",
-                width: "48px",
-                height: "48px",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center"
+                border: inputMessage.trim() && !isOrchestratorThinking
+                  ? "1px solid rgba(96, 165, 250, 0.3)"
+                  : "1px solid rgba(255, 255, 255, 0.1)",
+                color: "white"
               }}
               onMouseEnter={(e) => {
                 if (inputMessage.trim() && !isOrchestratorThinking) {
                   e.currentTarget.style.transform = "translateY(-2px)";
-                  e.currentTarget.style.boxShadow = "0 6px 16px rgba(73, 184, 91, 0.4)";
+                  e.currentTarget.style.boxShadow = "0 6px 20px rgba(59, 130, 246, 0.5)";
+                  e.currentTarget.style.background = "linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)";
                 }
               }}
               onMouseLeave={(e) => {
                 if (inputMessage.trim() && !isOrchestratorThinking) {
                   e.currentTarget.style.transform = "translateY(0)";
-                  e.currentTarget.style.boxShadow = "0 2px 8px rgba(73, 184, 91, 0.3)";
+                  e.currentTarget.style.boxShadow = "0 3px 12px rgba(59, 130, 246, 0.4)";
+                  e.currentTarget.style.background = "linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)";
                 }
               }}
             >
               {isOrchestratorThinking ? (
-                <div className="flex items-center gap-1">
-                  <div className="w-2 h-2 bg-white rounded-full animate-bounce"></div>
-                  <div className="w-2 h-2 bg-white rounded-full animate-bounce" style={{ animationDelay: "0.1s" }}></div>
-                  <div className="w-2 h-2 bg-white rounded-full animate-bounce" style={{ animationDelay: "0.2s" }}></div>
-                </div>
+                <>
+                  <div className="flex items-center gap-1">
+                    <div className="w-2 h-2 bg-white rounded-full animate-bounce"></div>
+                    <div className="w-2 h-2 bg-white rounded-full animate-bounce" style={{ animationDelay: "0.1s" }}></div>
+                    <div className="w-2 h-2 bg-white rounded-full animate-bounce" style={{ animationDelay: "0.2s" }}></div>
+                  </div>
+                  <span className="text-sm">Sending...</span>
+                </>
               ) : (
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" className="text-white">
-                  <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
-                </svg>
+                <>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" className="text-white">
+                    <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
+                  </svg>
+                  <span className="text-sm">Send</span>
+                </>
               )}
             </button>
 

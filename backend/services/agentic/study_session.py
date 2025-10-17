@@ -511,36 +511,53 @@ Ready to try a practice problem?"""
 
         # TUTOR AGENT  
         @tool
-        def ask_socratic_question(
+        async def ask_socratic_question(
             topic: str,
             student_response: str,
             learning_objective: str
         ) -> str:
-            """Use Socratic method to guide student discovery"""
+            """Dynamically generate Socratic questions (AI-driven when possible).
             
-            socratic_questions = {
-                "kinematics": [
-                    "What do you think happens to an object's velocity when it accelerates?",
-                    "If you throw a ball upward, what forces act on it during its flight?",
-                    "How might the motion be different on the Moon compared to Earth?",
-                    "What's the difference between speed and velocity? Can you give an example?"
-                ],
-                "reading_comprehension": [
-                    "What clues in the text help you understand the character's motivation?",
-                    "Why do you think the author chose this particular setting?", 
-                    "What assumptions is the author making about the reader's knowledge?",
-                    "How does the tone change throughout the passage?"
-                ],
-                "algebra": [
-                    "What does this variable represent in the real-world context?",
-                    "What would happen if this coefficient was negative instead?",
-                    "How can you check if your solution makes sense?",
-                    "What's another way you could set up this equation?"
-                ]
-            }
+            If Strands is available, ask the orchestrator LLM to produce a short,
+            progressive set of Socratic prompts tailored to the topic and learning
+            objective. Otherwise fall back to a rule-based template generator.
+            """
             
-            questions = socratic_questions.get(topic, ["What do you think about this concept?"])
-            return f"Let me guide you to discover this: {questions[0]}\n\nThink about it step by step..."
+            # Build a clear generation prompt
+            generation_prompt = f"""
+You are an expert Socratic tutor for Singapore O-Level students.
+Topic: {topic}
+Learning objective: {learning_objective}
+Student's recent response: "{student_response}"
+
+Task: Produce 4 concise, progressive Socratic questions that guide the student
+from basic understanding to deeper insight. Number them 1-4 and keep each
+question short (one sentence). Make them encouraging and scaffolded.
+"""
+            # Try AI-first generation when Strands/agent available
+            try:
+                if STRANDS_AVAILABLE and getattr(self, "agent", None):
+                    result = await self.agent.invoke_async(generation_prompt)
+                    ai_text = self._extract_message_text(result)
+                    # Ensure a short guiding prefix similar to prior behaviour
+                    return f"Let me guide you to discover this:\n\n{ai_text}"
+            except Exception as e:
+                logger.debug(f"AI Socratic generation failed, falling back to template: {e}")
+            
+            # Fallback heuristic generation (template-based)
+            templates = [
+                f"What do you think is the key idea behind {topic}?",
+                f"Can you give a simple example that shows the concept in action?",
+                f"What would happen if one of the conditions changed (for example, time or force)?",
+                f"How could you check whether your explanation or answer makes sense?"
+            ]
+            
+            # Slightly adapt templates using learning objective or student response when available
+            if learning_objective:
+                templates[0] = f"What part of '{learning_objective}' do you feel most confident about?"
+                templates[1] = f"Can you demonstrate '{learning_objective}' with a short example?"
+            
+            return "Let me guide you to discover this:\n\n" + "\n".join(f"{i+1}. {q}" for i, q in enumerate(templates))
 
         @tool
         def provide_detailed_feedback(

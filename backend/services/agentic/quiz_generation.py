@@ -260,7 +260,7 @@ class EvaluationQuizAgent:
             # Use lazy initialization as fallback
             self.rag_agent = None
             self.agent_tools = None
-            self.model_id = "anthropic.claude-3-5-sonnet-20241022-v2:0"
+            self.model_id = "us.anthropic.claude-sonnet-4-20250514-v1:0"
             logger.info("✅ Agent setup configured for lazy initialization")
     
     def _setup_agents_with_timeout(self):
@@ -366,11 +366,11 @@ class EvaluationQuizAgent:
         # Main RAG Agent
         self.rag_agent = Agent(
             tools=[http_request, fetch_syllabus_content, generate_adaptive_questions],
-            model="anthropic.claude-3-5-sonnet-20241022-v2:0"  # Using Claude 3.5 Sonnet v2
+            model="us.anthropic.claude-sonnet-4-20250514-v1:0"  # Using Claude Sonnet 4 with cross-region inference
         )
-        
+
         # Agent configuration for fresh instance creation
-        self.model_id = "anthropic.claude-3-5-sonnet-20241022-v2:0"
+        self.model_id = "us.anthropic.claude-sonnet-4-20250514-v1:0"
         self.agent_tools = [generate_adaptive_questions]
     
     def _create_fresh_question_agent(self):

@@ -1045,19 +1045,51 @@ Ready to begin? Type 'start' or ask any questions about the topic!"""
                 if agent_id == "teacher":
                     if mode == "learning":
                         logger.info(f"📚 Teacher agent: explaining concept for {context.topic_id}")
-                        response_text = agent.tools[0](  # explain_concept (not async)
-                            topic=context.topic_id,
-                            expertise_level=context.expertise_level
-                        )
-                        logger.info(f"✅ Teacher response received: {str(response_text)[:100]}...")
+                        # Use LLM to generate explanation instead of hardcoded responses
+                        prompt = f"""You are an experienced Singapore O-Level teacher specializing in content delivery.
+
+Topic: {context.topic_id.replace('_', ' ')}
+Student expertise level: {context.expertise_level}
+Student message: "{student_message}"
+
+Provide a clear, structured explanation of this topic in digestible chunks:
+1. **What is this concept?** - Brief definition
+2. **Key Concepts** - Break down into 2-3 main points
+3. **Essential Information** - Formulas, rules, or key facts relevant to O-Level
+4. **Quick Example** - Show a simple application
+
+Keep it engaging and appropriate for {context.expertise_level} level. Use clear formatting with bullet points and bold headings.
+End with an encouraging question or prompt to check understanding."""
+                        logger.info(f"💬 Sending prompt to teacher agent (learning mode)")
+                        result = await agent.invoke_async(prompt)
+                        logger.info(f"✅ Teacher agent responded (learning mode)")
+                        response_text = self._extract_message_text(result)
+                        logger.info(f"📝 Extracted response: {response_text[:100]}...")
                     else:  # practice
                         logger.info(f"📝 Teacher agent: generating practice question for {context.topic_id}")
-                        response_data = agent.tools[1](  # generate_practice_question (not async)
-                            topic=context.topic_id,
-                            expertise_level=context.expertise_level
-                        )
-                        logger.info(f"✅ Practice question generated: {str(response_data)[:100]}...")
-                        response_text = f"**Practice Question:**\n{response_data['question']}\n\n*Try to solve this, then I'll provide the answer and technique.*"
+                        # Use LLM to generate practice questions instead of hardcoded ones
+                        prompt = f"""You are an experienced Singapore O-Level teacher specializing in exam preparation.
+
+Topic: {context.topic_id.replace('_', ' ')}
+Student expertise level: {context.expertise_level}
+
+Generate a Singapore O-Level style practice question appropriate for {context.expertise_level} level:
+
+**Format:**
+**Question:** [Write the question here - make it exam-style]
+
+[If multiple choice, provide options A-D]
+[If structured question, provide clear instructions]
+
+**Instructions to student:**
+Try to solve this question and type your answer. I'll provide the correct answer, working steps, and O-Level answering techniques.
+
+Make the difficulty appropriate for {context.expertise_level} level."""
+                        logger.info(f"💬 Sending prompt to teacher agent (practice mode)")
+                        result = await agent.invoke_async(prompt)
+                        logger.info(f"✅ Teacher agent responded (practice mode)")
+                        response_text = self._extract_message_text(result)
+                        logger.info(f"📝 Extracted response: {response_text[:100]}...")
                         
                 elif agent_id == "tutor":
                     logger.info(f"🎓 Tutor agent activated in {mode} mode")

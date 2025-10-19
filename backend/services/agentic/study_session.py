@@ -1024,30 +1024,43 @@ Ready to begin? Type 'start' or ask any questions about the topic!"""
         student_message: str
     ) -> Dict[str, Any]:
         """Call a specialized agent and return response"""
-        
+
+        logger.info(f"🤖 Calling specialized agent: {agent_id} in {mode} mode")
+
         if agent_id not in self.specialized_agents:
+            logger.error(f"❌ Agent {agent_id} not found in specialized_agents")
             return {"error": f"Agent {agent_id} not found"}
-        
+
         agent = self.specialized_agents[agent_id]
         context = session_data.context
-        
+
+        logger.info(f"📋 Agent context: topic={context.topic_id}, expertise={context.expertise_level}")
+
         try:
             if STRANDS_AVAILABLE:
+                logger.info(f"✅ Strands SDK available - using agent tools")
+                logger.info(f"🔧 Agent has {len(agent.tools) if hasattr(agent, 'tools') else 0} tools available")
+
                 # Use appropriate agent tool based on mode
                 if agent_id == "teacher":
                     if mode == "learning":
+                        logger.info(f"📚 Teacher agent: explaining concept for {context.topic_id}")
                         response_text = agent.tools[0](  # explain_concept (not async)
                             topic=context.topic_id,
                             expertise_level=context.expertise_level
                         )
+                        logger.info(f"✅ Teacher response received: {str(response_text)[:100]}...")
                     else:  # practice
+                        logger.info(f"📝 Teacher agent: generating practice question for {context.topic_id}")
                         response_data = agent.tools[1](  # generate_practice_question (not async)
                             topic=context.topic_id,
                             expertise_level=context.expertise_level
                         )
+                        logger.info(f"✅ Practice question generated: {str(response_data)[:100]}...")
                         response_text = f"**Practice Question:**\n{response_data['question']}\n\n*Try to solve this, then I'll provide the answer and technique.*"
                         
                 elif agent_id == "tutor":
+                    logger.info(f"🎓 Tutor agent activated in {mode} mode")
                     if mode == "learning":
                         # Get recent conversation history for context
                         recent_messages = session_data.messages[-4:] if len(session_data.messages) >= 4 else session_data.messages
@@ -1061,8 +1074,10 @@ Ready to begin? Type 'start' or ask any questions about the topic!"""
                                     content = content['content'][0].get('text', str(content))
                             conversation_history.append(f"{sender}: {content}")
                         conversation_context = "\n".join(conversation_history)
-                        
-                        prompt = f"""You are a Socratic tutor having a conversation with a student about '{context.topic_id}'. 
+
+                        logger.info(f"📜 Conversation history: {len(conversation_history)} messages")
+
+                        prompt = f"""You are a Socratic tutor having a conversation with a student about '{context.topic_id}'.
 
 IMPORTANT: The student is NOT asking you to generate content. They are answering your previous question or making an observation. DO NOT say they are "asking for content generation."
 
@@ -1072,7 +1087,7 @@ Recent conversation:
 The student just responded: "{student_message}"
 
 Your job: Continue this Socratic dialogue naturally by:
-1. Acknowledging what they said (e.g., "Excellent observation!" or "That's a good start...")  
+1. Acknowledging what they said (e.g., "Excellent observation!" or "That's a good start...")
 2. Building on their response
 3. Asking a follow-up question that guides them to discover more
 
@@ -1080,12 +1095,18 @@ Example response format:
 "Great thinking! You noticed [acknowledge their response]. Now, building on that... [follow-up question]"
 
 DO NOT mention "content generation" or assume they want you to create materials."""
+                        logger.info(f"💬 Sending prompt to tutor agent (learning mode)")
                         result = await agent.invoke_async(prompt)
+                        logger.info(f"✅ Tutor agent responded (learning mode)")
                         response_text = self._extract_message_text(result)
-                    else:  # practice  
+                        logger.info(f"📝 Extracted response: {response_text[:100]}...")
+                    else:  # practice
+                        logger.info(f"💬 Sending feedback prompt to tutor agent (practice mode)")
                         prompt = f"Provide detailed feedback on this student answer: '{student_message}' for the topic '{context.topic_id}'. Include O-Level answering techniques."
                         result = await agent.invoke_async(prompt)
+                        logger.info(f"✅ Tutor agent responded (practice mode)")
                         response_text = self._extract_message_text(result)
+                        logger.info(f"📝 Extracted response: {response_text[:100]}...")
                         
                 elif agent_id == "perfect_scorer":
                     if mode == "learning":
@@ -1102,6 +1123,7 @@ DO NOT mention "content generation" or assume they want you to create materials.
                 response_text = f"[SIMULATION] {agent_id.title()} agent would provide {mode} content for {context.topic_id} here."
             
             # Add agent response to session
+            logger.info(f"💾 Creating agent message with content length: {len(response_text)}")
             agent_msg = {
                 "id": f"msg_{int(time.time())}_agent",
                 "sender": agent_id,
@@ -1114,7 +1136,8 @@ DO NOT mention "content generation" or assume they want you to create materials.
                 }
             }
             session_data.messages.append(agent_msg)
-            
+            logger.info(f"✅ Agent message added to session. Total messages: {len(session_data.messages)}")
+
             # Log agent interaction
             session_data.agent_interactions.append({
                 "timestamp": datetime.now().isoformat(),
@@ -1124,11 +1147,13 @@ DO NOT mention "content generation" or assume they want you to create materials.
                 "response_length": len(response_text),
                 "tools_used": ["primary_tool"]
             })
-            
+
             # Update progress
             session_data.student_progress["concepts_learned"] += 1
             session_data.last_updated = datetime.now()
-            
+
+            logger.info(f"📤 Returning response: agent_id={agent_id}, mode={mode}, content_length={len(response_text)}")
+
             return {
                 "success": True,
                 "message": agent_msg,

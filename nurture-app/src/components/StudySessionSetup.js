@@ -22,6 +22,9 @@ const StudySessionSetup = () => {
       if (user && topicId) {
         const db = getFirestore();
         // Path according to README: users/{userId}/subjects/{subjectId}/topics/{topicId}
+        const topicPath = `users/${user.uid}/subjects/${subjectId}/topics/${topicId}`;
+        console.log(`StudySessionSetup: Fetching expertise from path: ${topicPath}`);
+
         const topicRef = doc(
           db,
           "users",
@@ -33,9 +36,14 @@ const StudySessionSetup = () => {
         );
         const topicSnap = await getDoc(topicRef);
         if (topicSnap.exists()) {
-          setExpertise(topicSnap.data().expertiseLevel);
+          // Normalize to lowercase for consistency
+          const level = topicSnap.data().expertiseLevel;
+          const normalizedLevel = level ? level.toLowerCase() : "beginner";
+          console.log(`StudySessionSetup: Loaded expertise level: ${level} → ${normalizedLevel}`);
+          setExpertise(normalizedLevel);
         } else {
-          setExpertise("Beginner"); // Default if not evaluated
+          console.log(`StudySessionSetup: No topic data found at path, defaulting to beginner`);
+          setExpertise("beginner"); // Default if not evaluated
         }
       }
     };
@@ -43,10 +51,11 @@ const StudySessionSetup = () => {
   }, [user, topicId, subjectId]);
 
   const expertiseColorMapping = {
-    Beginner: "text-red-500",
-    Apprentice: "text-yellow-500",
-    Pro: "text-green-500",
-    "Grand Master": "text-blue-500",
+    beginner: "text-red-500",
+    apprentice: "text-yellow-500",
+    pro: "text-green-500",
+    "grand master": "text-blue-500",
+    grandmaster: "text-blue-500", // Handle both formats
   };
 
   const handleStartSession = async () => {
@@ -56,6 +65,10 @@ const StudySessionSetup = () => {
     }
     if (!topicId || !subjectId) {
       setError("Topic or subject not selected.");
+      return;
+    }
+    if (!expertise) {
+      setError("Loading expertise level, please wait...");
       return;
     }
 
@@ -89,6 +102,8 @@ const StudySessionSetup = () => {
 
       const sessionId = await addStudySession(user.uid, sessionData);
 
+      console.log(`StudySessionSetup: Starting session with expertise level: ${expertise}`);
+
       navigate("/study-session", {
         state: {
           studyTime: studyTime,
@@ -98,7 +113,7 @@ const StudySessionSetup = () => {
           subjectId: subjectId,
           focusLevel: focusLevel,
           stressLevel: stressLevel,
-          expertiseLevel: expertise,
+          expertiseLevel: expertise, // Should be loaded by now due to validation
         },
       });
     } catch (e) {
@@ -151,7 +166,9 @@ const StudySessionSetup = () => {
                 expertiseColorMapping[expertise] || "text-gray-300"
               }`}
             >
-              {expertise || "Loading..."}
+              {expertise
+                ? expertise.charAt(0).toUpperCase() + expertise.slice(1)
+                : "Loading..."}
             </span>
           </p>
         </div>

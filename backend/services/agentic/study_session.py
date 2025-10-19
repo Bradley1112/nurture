@@ -1046,17 +1046,30 @@ Ready to begin? Type 'start' or ask any questions about the topic!"""
                     if mode == "learning":
                         logger.info(f"📚 Teacher agent: explaining concept for {context.topic_id}")
                         # Use LLM to generate explanation instead of hardcoded responses
-                        prompt = f"""You are an experienced Singapore O-Level teacher specializing in content delivery.
+                        prompt = f"""You are an experienced Singapore O-Level teacher specializing in adaptive content delivery.
 
 Topic: {context.topic_id.replace('_', ' ')}
 Student expertise level: {context.expertise_level}
 Student message: "{student_message}"
 
-Provide a clear, structured explanation of this topic in digestible chunks:
-1. **What is this concept?** - Brief definition
-2. **Key Concepts** - Break down into 2-3 main points
-3. **Essential Information** - Formulas, rules, or key facts relevant to O-Level
-4. **Quick Example** - Show a simple application
+**Teaching Approach:**
+- Focus on ONE core concept per response
+- Keep explanations concise (2-3 sentences per section)
+- Adapt complexity to student's demonstrated understanding
+- Address any misconceptions in the student's message first
+
+**Response Structure:**
+1. **What is this concept?** - One clear definition (1-2 sentences)
+2. **Key Points** - Maximum 2 main points with bullet format
+3. **Essential for O-Level** - One key formula/rule/fact most relevant to exams
+4. **Quick Example** - One simple, worked example with clear steps
+
+**Guidelines:**
+- Keep total response under 200 words
+- Use simple, clear language appropriate for {context.expertise_level} level
+- If student shows confusion, focus on clarifying that specific point
+- End with ONE targeted question to check understanding (not multiple questions)
+- Avoid overwhelming with too many concepts at once
 
 Keep it engaging and appropriate for {context.expertise_level} level. Use clear formatting with bullet points and bold headings.
 End with an encouraging question or prompt to check understanding."""

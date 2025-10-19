@@ -19,7 +19,7 @@ function Dashboard({ user }) {
       name: "Elementary Mathematics (SEAB Syllabus 4048)",
       topics: [
         {
-          id: "algebra_solving_linear_quadratic_equations",
+          id: "algebra_solving_linearquadratic_equations", // Matches Firebase sanitization
           name: "Solving Linear/Quadratic Equations",
         },
         {
@@ -40,17 +40,18 @@ function Dashboard({ user }) {
     },
   ];
 
-  // Helper function to sanitize names for Firestore paths (same logic as EvaluationQuiz)
+  // Helper function to sanitize names for Firestore paths (MUST match EvaluationQuiz exactly)
   const sanitizeForFirestore = (name) => {
     return name
       .toLowerCase()
-      .replace(/\s+/g, "_")
-      .replace(/[^a-z0-9_]/g, "");
+      .replace(/\s+/g, '_')
+      .replace(/[^a-z0-9_]/g, '');
   };
 
   useEffect(() => {
     const fetchEvaluatedTopics = async () => {
-      console.log("Dashboard: Fetching evaluated topics for user:", user?.uid);
+      console.log("=== Dashboard: Starting to fetch evaluated topics ===");
+      console.log("Dashboard: User ID:", user?.uid);
       if (!user) {
         setLoading(false);
         return;
@@ -58,6 +59,8 @@ function Dashboard({ user }) {
 
       const db = getFirestore();
       const evaluatedTopicsData = {};
+
+      console.log("Dashboard: Will check these subject IDs:", allSubjects.map(s => s.id));
 
       try {
         // First, let's discover what subjects actually exist in the database
@@ -78,6 +81,9 @@ function Dashboard({ user }) {
               .trim()
               .replace(/\s+/g, "_"), // just the subject part
           ];
+
+          console.log(`\n--- Checking subject: ${subject.name} (ID: ${subject.id}) ---`);
+          console.log("Dashboard: Will try these subject paths:", possibleSubjectNames);
 
           let foundSubjectData = false;
 
@@ -100,7 +106,7 @@ function Dashboard({ user }) {
 
               if (!topicsSnapshot.empty) {
                 console.log(
-                  `Dashboard: ✅ Found subject data at ${subjectName}`
+                  `Dashboard: ✅✅✅ FOUND subject data at ${subjectName} with ${topicsSnapshot.size} topics`
                 );
                 foundSubjectData = true;
 
@@ -110,29 +116,56 @@ function Dashboard({ user }) {
                   const firebaseTopicId = topicDoc.id;
 
                   console.log(
-                    `Dashboard: Found topic in Firebase: ${firebaseTopicId}`,
+                    `Dashboard: 📍 Found topic in Firebase: ${firebaseTopicId}`,
                     topicData
                   );
+                  console.log(`  - expertiseLevel: ${topicData.expertiseLevel}`);
 
                   // Find matching topic in our predefined topics
-                  // This is a flexible matching approach
+                  // Match using the originalTopicName stored in Firebase or sanitized name
+                  console.log(`  - Trying to match against dashboard topics:`, subject.topics.map(t => ({id: t.id, name: t.name})));
+
                   const matchingTopic = subject.topics.find((topic) => {
-                    const possibleMatches = [
-                      topic.id,
-                      sanitizeForFirestore(topic.name),
-                      topic.name.toLowerCase().replace(/[^a-z0-9]/g, "_"),
-                    ];
-                    return (
-                      possibleMatches.includes(firebaseTopicId) ||
-                      firebaseTopicId.includes(topic.id) ||
-                      topic.id.includes(firebaseTopicId)
-                    );
+                    // Strategy 1: Check if firebaseTopicId directly matches topic.id
+                    if (firebaseTopicId === topic.id) {
+                      console.log(`    ✅ Direct ID match: ${firebaseTopicId} === ${topic.id}`);
+                      return true;
+                    }
+
+                    // Strategy 2: Compare sanitized originalTopicName with sanitized topic.name
+                    if (topicData.originalTopicName) {
+                      const sanitizedOriginal = sanitizeForFirestore(topicData.originalTopicName);
+                      const sanitizedDashboard = sanitizeForFirestore(topic.name);
+
+                      // Also try removing common prefixes like "Algebra: "
+                      const cleanedOriginal = topicData.originalTopicName
+                        .replace(/^[A-Za-z]+:\s*/, '') // Remove "Algebra: " or similar
+                        .toLowerCase();
+                      const cleanedDashboard = topic.name.toLowerCase();
+
+                      const match = sanitizedOriginal === sanitizedDashboard ||
+                                    sanitizeForFirestore(cleanedOriginal) === sanitizeForFirestore(cleanedDashboard) ||
+                                    cleanedOriginal === cleanedDashboard;
+
+                      console.log(`    • Comparing originalTopicName "${topicData.originalTopicName}" vs topic.name "${topic.name}": ${match}`);
+                      if (match) return true;
+                    }
+
+                    // Strategy 3: Compare firebaseTopicId with sanitized topic.name
+                    const sanitizedTopicName = sanitizeForFirestore(topic.name);
+                    const match = firebaseTopicId === sanitizedTopicName;
+                    console.log(`    • Checking if "${firebaseTopicId}" matches sanitized topic.name "${sanitizedTopicName}": ${match}`);
+                    return match;
                   });
 
                   if (matchingTopic) {
+                    // Normalize expertise level to lowercase for consistency
+                    const expertiseLevel = topicData.expertiseLevel
+                      ? topicData.expertiseLevel.toLowerCase()
+                      : "not evaluated";
+
                     evaluatedTopicsData[subjectKey][matchingTopic.id] = {
-                      expertiseLevel:
-                        topicData.expertiseLevel || "Not Evaluated",
+                      expertiseLevel: expertiseLevel,
                       evaluationScore:
                         topicData.evaluationScore || topicData.score || 0,
                       lastStudied:
@@ -140,10 +173,11 @@ function Dashboard({ user }) {
                       isEvaluated: true,
                     };
                     console.log(
-                      `Dashboard: ✅ Mapped ${firebaseTopicId} to ${matchingTopic.id}:`,
+                      `Dashboard: ✅✅✅ MATCHED and mapped ${firebaseTopicId} → ${matchingTopic.id}`,
                       evaluatedTopicsData[subjectKey][matchingTopic.id]
                     );
                   } else {
+                    console.error(`Dashboard: ❌❌❌ FAILED to match topic ${firebaseTopicId}`);
                     // If we can't match, create a best-guess mapping
                     console.log(
                       `Dashboard: ⚠️ Could not match topic ${firebaseTopicId} to predefined topics`
@@ -151,9 +185,13 @@ function Dashboard({ user }) {
                     // Use the first topic as fallback if there's only one
                     if (subject.topics.length === 1) {
                       const fallbackTopic = subject.topics[0];
+                      // Normalize expertise level for fallback too
+                      const expertiseLevel = topicData.expertiseLevel
+                        ? topicData.expertiseLevel.toLowerCase()
+                        : "not evaluated";
+
                       evaluatedTopicsData[subjectKey][fallbackTopic.id] = {
-                        expertiseLevel:
-                          topicData.expertiseLevel || "Not Evaluated",
+                        expertiseLevel: expertiseLevel,
                         evaluationScore:
                           topicData.evaluationScore || topicData.score || 0,
                         lastStudied:
@@ -192,10 +230,11 @@ function Dashboard({ user }) {
           }
         }
 
-        console.log("Dashboard: Final evaluated topics:", evaluatedTopicsData);
+        console.log("\n=== Dashboard: FINAL evaluated topics data ===");
+        console.log(JSON.stringify(evaluatedTopicsData, null, 2));
         setEvaluatedTopics(evaluatedTopicsData);
       } catch (error) {
-        console.error("Dashboard: Error fetching evaluated topics:", error);
+        console.error("Dashboard: ❌ Error fetching evaluated topics:", error);
       }
 
       setLoading(false);
@@ -335,7 +374,7 @@ function Dashboard({ user }) {
                   gap: "24px",
                 }}
               >
-                {allSubjects.map((subject, index) => (
+                {allSubjects.map((subject) => (
                   <div
                     key={subject.id}
                     className="group relative w-full h-full flex flex-col"

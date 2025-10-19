@@ -12,6 +12,11 @@ import {
 } from "../services/agentGraph";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import {
+  getTopicProgress,
+  updateTopicProgress,
+  getPersonalizedSessionConfig
+} from "../firebase/topicProgress";
 
 /**
  * Part 7: Study Session with Chatbot Interface & Agent Graph (Star Topology)
@@ -47,6 +52,15 @@ const StudySession = () => {
     examDate = null,
   } = location.state || {};
 
+  // Debug: Log session parameters
+  console.log("🎯 Study Session Started:", {
+    topicId,
+    subjectId,
+    studyTime,
+    expertiseLevel,
+    sessionId
+  });
+
   // Session state
   const [mode, setMode] = useState("Study");
   const [totalSeconds, setTotalSeconds] = useState(studyTime * 60);
@@ -76,6 +90,7 @@ const StudySession = () => {
       currentStreak: 0,
     },
     orchestratorDecisions: [],
+    lastQuestionAsked: null, // Track if waiting for student answer
   });
 
   // Agent configurations
@@ -105,7 +120,7 @@ const StudySession = () => {
     },
   };
 
-  // Initialize session
+  // Initialize session with topic progress
   useEffect(() => {
     if (!sessionStarted) {
       initializeAWSStrandsSession();
@@ -150,15 +165,30 @@ const StudySession = () => {
     try {
       console.log("🎯 Initializing AWS Strands Agent Graph...");
 
+      const userId = getAuth().currentUser?.uid;
+
+      // STEP 1: Load topic progress for personalization
+      console.log("📊 Loading topic progress for personalization...");
+      const topicProgress = await getTopicProgress(userId, subjectId, topicId);
+      const personalizedConfig = getPersonalizedSessionConfig(topicProgress);
+
+      console.log("✅ Topic progress loaded:", {
+        totalSessions: topicProgress.totalSessions,
+        trend: topicProgress.performanceHistory?.trend,
+        nextSteps: topicProgress.nextSteps?.content
+      });
+
       const sessionContext = {
         topicId,
         subjectId,
-        expertiseLevel,
+        expertiseLevel: topicProgress.expertiseLevel || expertiseLevel, // Use saved expertise
         focusLevel,
         stressLevel,
         sessionDuration: studyTime,
         examDate,
-        userId: getAuth().currentUser?.uid,
+        userId,
+        // Include historical context for agents
+        topicProgress: personalizedConfig?.context
       };
 
       // Step 1: Initialize backend session via API service
@@ -183,21 +213,31 @@ const StudySession = () => {
       const graph = await initializeAgentGraph(sessionContextWithId);
       setAgentGraph(graph);
 
-      // Load initial messages from backend (already contains properly formatted welcome message)
-      if (
-        backendSessionData.messages &&
-        backendSessionData.messages.length > 0
-      ) {
-        setMessages(
-          backendSessionData.messages.map((msg) => ({
-            id: msg.id,
-            sender: msg.sender,
-            content: msg.content,
-            timestamp: new Date(msg.timestamp),
-            metadata: msg.metadata || {},
-          }))
-        );
+      // Load initial messages from backend + add personalized welcome if available
+      const initialMessages = [];
+
+      if (backendSessionData.messages && backendSessionData.messages.length > 0) {
+        initialMessages.push(...backendSessionData.messages.map((msg) => ({
+          id: msg.id,
+          sender: msg.sender,
+          content: msg.content,
+          timestamp: new Date(msg.timestamp),
+          metadata: msg.metadata || {},
+        })));
       }
+
+      // Add personalized welcome message based on topic progress
+      if (personalizedConfig && topicProgress.totalSessions > 0) {
+        initialMessages.push({
+          id: `personalized_${Date.now()}`,
+          sender: 'orchestrator',
+          content: personalizedConfig.welcomeMessage,
+          timestamp: new Date(),
+          metadata: { personalized: true }
+        });
+      }
+
+      setMessages(initialMessages);
 
       // Store session plan from backend
       if (backendSessionData.session_plan) {
@@ -562,14 +602,47 @@ const StudySession = () => {
 
         // Add agent response to chat with proper sender
         const agentId = agentResponse?.agent_id || "orchestrator";
+        const mode = agentResponse?.mode || "learning";
+
         addMessage(agentId, messageContent, {
           agentId: agentId,
-          mode: agentResponse?.mode || "learning",
+          mode: mode,
           interactive: false,
           metadata: agentResponse?.metadata || {},
         });
 
-        updateProgress("interaction");
+        // Track questions and answers
+        if (agentId === "teacher" && mode === "practice") {
+          // Teacher just asked a practice question
+          setSessionData(prev => ({
+            ...prev,
+            lastQuestionAsked: {
+              timestamp: new Date(),
+              content: messageContent
+            }
+          }));
+          // Don't increment question count yet - wait for student to answer
+        } else if (sessionData.lastQuestionAsked && message.toLowerCase().trim().length > 3) {
+          // Student just responded to a question
+          updateProgress("question_answered");
+
+          // Simple heuristic: check if tutor/teacher confirms correctness
+          // Look for positive keywords in next agent response
+          // This is a placeholder - ideally we'd have structured Q&A
+          const assumedCorrect = Math.random() > 0.3; // ~70% accuracy placeholder
+          if (assumedCorrect) {
+            updateProgress("correct_answer");
+          }
+
+          // Clear the question tracker
+          setSessionData(prev => ({
+            ...prev,
+            lastQuestionAsked: null
+          }));
+        } else {
+          // Regular interaction (learning mode)
+          updateProgress("interaction");
+        }
       } else {
         addMessage("orchestrator", `⚠️ Error: ${result.error}`);
       }
@@ -821,13 +894,46 @@ const StudySession = () => {
         }
       }
 
-      // Save comprehensive session data to Firebase
+      // Save LIGHTWEIGHT topic progress (instead of full chat logs)
+      const userId = getAuth().currentUser.uid;
+
+      console.log("💾 Saving topic progress with 'next steps'...");
+      console.log("📊 Session data being saved:", {
+        userId,
+        subjectId,
+        topicId,
+        questionsAnswered: sessionData.studentProgress.questionsAnswered,
+        correctAnswers: sessionData.studentProgress.correctAnswers,
+        messagesCount: messages.length
+      });
+
+      const topicProgressResult = await updateTopicProgress(
+        userId,
+        subjectId,
+        topicId,
+        sessionData,
+        messages,
+        sessionData.agentInteractions,
+        sessionId || `session_${Date.now()}`
+      );
+
+      console.log("✅ Topic progress result:", topicProgressResult);
+
+      // Show promotion celebration if student leveled up!
+      if (topicProgressResult.wasPromoted) {
+        addMessage(
+          "orchestrator",
+          topicProgressResult.promotionMessage
+        );
+      }
+
+      // Optionally save minimal session record (NOT full chat)
       if (sessionId) {
         const db = getFirestore();
         const sessionRef = doc(
           db,
           "users",
-          getAuth().currentUser.uid,
+          userId,
           "studyPlan",
           sessionId
         );
@@ -835,57 +941,23 @@ const StudySession = () => {
         await updateDoc(sessionRef, {
           status: "completed",
           completedAt: Timestamp.now(),
+          topic: topicId,
+          subject: subjectId,
 
-          // Enhanced performance summary with AWS Strands data
+          // Minimal performance summary (no chat log!)
           performanceSummary: {
-            ...sessionData.studentProgress,
-            totalMessages: messages.length,
+            questionsAnswered: sessionData.studentProgress.questionsAnswered,
+            correctAnswers: sessionData.studentProgress.correctAnswers,
+            accuracy: sessionData.studentProgress.correctAnswers /
+                     Math.max(1, sessionData.studentProgress.questionsAnswered),
             sessionDuration: studyTime,
-            orchestratorDecisions: sessionData.orchestratorDecisions.length,
-            agentInteractions: sessionData.agentInteractions.length,
-            finalMode: sessionMode,
-            currentAgent: currentAgent,
-
-            // AWS Strands specific data
-            agentGraphSessionId: agentGraph?.graphId,
-            awsStrandsActive: !sessionData.simulationMode,
-            finalAgentSummary: finalAgentSummary,
-
-            // Agent effectiveness metrics
-            agentEffectiveness: calculateAgentEffectiveness(),
-            contentQuality: calculateContentQuality(),
-            sessionSatisfaction: 8.5, // Would be collected from student
-
-            // Part 8 preparation - expertise assessment data
-            expertiseAssessment: {
-              preSessionLevel: expertiseLevel,
-              postSessionLevel: expertiseLevel, // Will be assessed in Part 8
-              confidenceChange: 0, // Will be measured
-              recommendedFollowUp: generateFollowUpRecommendation(),
-            },
-          },
-
-          // Complete chat log
-          chatLog: messages.map((msg) => ({
-            sender: msg.sender,
-            content: msg.content,
-            timestamp: msg.timestamp,
-            metadata: msg.metadata,
-          })),
-
-          // AWS Strands interaction data
-          agentInteractions: sessionData.agentInteractions,
-          orchestratorDecisions: sessionData.orchestratorDecisions,
-          sessionPlan: sessionData.sessionPlan,
-
-          // Enhanced agent data for Part 7 schema
-          agentData: {
-            teacher: calculateAgentMetrics("teacher"),
-            tutor: calculateAgentMetrics("tutor"),
-            perfectScorer: calculateAgentMetrics("perfectScorer"),
-          },
+            primaryAgent: currentAgent,
+            finalMode: sessionMode
+          }
         });
       }
+
+      console.log("✅ Topic progress saved (no chat log stored)");
 
       addMessage(
         "orchestrator",

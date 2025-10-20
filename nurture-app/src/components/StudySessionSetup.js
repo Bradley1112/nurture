@@ -132,114 +132,355 @@ const StudySessionSetup = () => {
 
   return (
     <div
-      className="min-h-screen flex flex-col items-center justify-center"
+      className="study-session-setup min-h-screen flex items-center"
       style={{
-        backgroundColor: "#1A241B",
+        background: "linear-gradient(135deg, #1E2B22 0%, #0f1419 100%)",
         color: "#F5F5F5",
-        paddingLeft: "20px",
-        paddingRight: "20px",
+        padding: "24px 20px 24px 60px",
       }}
     >
-      <div className="w-full max-w-2xl p-8 space-y-10 rounded-lg">
-        <h1 className="text-3xl font-bold text-center">
-          Prepare Your Study Session
-        </h1>
+      <div style={{
+        background: "rgba(255, 255, 255, 0.03)",
+        backdropFilter: "blur(20px)",
+        border: "1px solid rgba(139, 195, 74, 0.2)",
+        borderRadius: "20px",
+        padding: "32px",
+        boxShadow: "0 8px 32px rgba(0, 0, 0, 0.3)",
+        maxWidth: "600px",
+        width: "100%"
+      }}>
+        {/* Compact Header */}
+        <div style={{ textAlign: "center", marginBottom: "24px" }}>
+          <h1 style={{
+            fontSize: "28px",
+            fontWeight: "700",
+            background: "linear-gradient(135deg, #A5D6A7 0%, #66BB6A 100%)",
+            WebkitBackgroundClip: "text",
+            WebkitTextFillColor: "transparent",
+            backgroundClip: "text",
+            marginBottom: "6px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: "10px"
+          }}>
+            <span>📚</span>
+            <span>Prepare Your Study Session</span>
+          </h1>
+        </div>
 
-        <div className="text-center text-xl">
-          <p>
-            Topic:{" "}
-            <span className="font-semibold">
+        {/* Compact Topic Info */}
+        <div style={{
+          background: "rgba(139, 195, 74, 0.08)",
+          border: "1px solid rgba(139, 195, 74, 0.25)",
+          borderRadius: "12px",
+          padding: "16px 20px",
+          marginBottom: "24px",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          flexWrap: "wrap",
+          gap: "12px"
+        }}>
+          <div>
+            <span style={{ color: "rgba(255, 255, 255, 0.6)", fontSize: "13px", display: "block", marginBottom: "4px" }}>Topic</span>
+            <h3 style={{
+              fontSize: "17px",
+              fontWeight: "600",
+              color: "#C5E1A5",
+              margin: 0
+            }}>
               {topicId
                 .replace(/_/g, " ")
                 .split(" ")
-                .map((word) => {
-                  return word.charAt(0).toUpperCase() + word.slice(1);
-                })
+                .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
                 .join(" ")}
-            </span>
-          </p>
+            </h3>
+          </div>
 
-          <p>
-            Your Expertise:{" "}
-            <span
-              className={`font-bold ${
-                expertiseColorMapping[expertise] || "text-gray-300"
-              }`}
-            >
-              {expertise
-                ? expertise.charAt(0).toUpperCase() + expertise.slice(1)
-                : "Loading..."}
-            </span>
-          </p>
+          <div style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "8px"
+          }}>
+            <span style={{ color: "rgba(255, 255, 255, 0.6)", fontSize: "13px" }}>Level:</span>
+            <div style={{
+              padding: "4px 12px",
+              borderRadius: "16px",
+              fontSize: "13px",
+              fontWeight: "600",
+              background: expertise === "Beginner" ? "rgba(239, 68, 68, 0.2)" :
+                         expertise === "Apprentice" ? "rgba(245, 158, 11, 0.2)" :
+                         expertise === "Pro" ? "rgba(34, 197, 94, 0.2)" :
+                         expertise === "Grand Master" ? "rgba(59, 130, 246, 0.2)" : "rgba(107, 114, 128, 0.2)",
+              border: expertise === "Beginner" ? "1px solid #ef4444" :
+                     expertise === "Apprentice" ? "1px solid #f59e0b" :
+                     expertise === "Pro" ? "1px solid #22c55e" :
+                     expertise === "Grand Master" ? "1px solid #3b82f6" : "1px solid #6b7280",
+              color: expertise === "Beginner" ? "#ff6666" :
+                    expertise === "Apprentice" ? "#ffbb33" :
+                    expertise === "Pro" ? "#44dd66" :
+                    expertise === "Grand Master" ? "#4499ff" : "#9ca3af"
+            }}>
+              {expertise || "Loading..."}
+            </div>
+          </div>
         </div>
 
+        {/* Vertical Layout for Settings */}
         {/* Duration Selection */}
-        <div className="space-y-2">
-          <label className="text-lg">How much time do you have?</label>
-          <div className="flex justify-around">
-            {[30, 60, 120].map((d) => (
+        <div style={{ marginBottom: "20px" }}>
+          <label style={{
+            fontSize: "15px",
+            fontWeight: "600",
+            color: "#C5E1A5",
+            display: "block",
+            marginBottom: "12px"
+          }}>
+            ⏱️ Study Duration
+          </label>
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(3, 1fr)",
+            gap: "8px"
+          }}>
+            {[
+              { value: 30, label: "30m" },
+              { value: 60, label: "60m" },
+              { value: 120, label: "120m" }
+            ].map(({ value, label }) => (
               <button
-                key={d}
-                onClick={() => setDuration(d)}
-                className={`px-4 py-2 rounded-md ${
-                  duration === d ? "bg-green-600" : "bg-gray-700"
-                } hover:bg-green-700`}
+                key={value}
+                onClick={() => setDuration(value)}
+                aria-label={`Select ${label} study session`}
+                aria-pressed={duration === value}
+                style={{
+                  padding: "12px 8px",
+                  borderRadius: "8px",
+                  border: duration === value ? "2px solid #66BB6A" : "1px solid rgba(255, 255, 255, 0.1)",
+                  background: duration === value ? "rgba(102, 187, 106, 0.15)" : "rgba(255, 255, 255, 0.05)",
+                  color: duration === value ? "#A5D6A7" : "rgba(255, 255, 255, 0.7)",
+                  cursor: "pointer",
+                  transition: "all 0.2s ease",
+                  fontSize: "14px",
+                  fontWeight: duration === value ? "600" : "500",
+                  textAlign: "center"
+                }}
+                onMouseEnter={(e) => {
+                  if (duration !== value) {
+                    e.currentTarget.style.background = "rgba(255, 255, 255, 0.08)";
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (duration !== value) {
+                    e.currentTarget.style.background = "rgba(255, 255, 255, 0.05)";
+                  }
+                }}
               >
-                {d} mins
+                {duration === value && "✓ "}{label}
               </button>
             ))}
           </div>
         </div>
-        <div>
-          <text></text>
-        </div>
 
-        {/* Focus Level */}
-        <div className="space-y-2">
-          <label htmlFor="focus" className="text-lg">
-            Focus Level: {focusLevel}
-          </label>
-          <div className="flex items-center space-x-4">
-            <input
-              id="focus"
-              type="range"
-              min="1"
-              max="5"
-              value={focusLevel}
-              onChange={(e) => setFocusLevel(Number(e.target.value))}
-              className="flex-1 h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer"
-              style={{ maxWidth: "30%" }}
-            />
+        {/* Focus Level - Segmented Control */}
+        <div style={{ marginBottom: "20px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+            <label style={{
+              fontSize: "15px",
+              fontWeight: "600",
+              color: "#C5E1A5"
+            }}>
+              🎯 Focus Level
+            </label>
+            <span style={{
+              fontSize: "13px",
+              color: "#A5D6A7",
+              fontWeight: "600"
+            }}>
+              {focusLevel}/5
+            </span>
+          </div>
+
+          <div style={{
+            display: "flex",
+            gap: "6px",
+            marginBottom: "6px"
+          }}>
+            {[1, 2, 3, 4, 5].map((level) => (
+              <button
+                key={level}
+                onClick={() => setFocusLevel(level)}
+                aria-label={`Set focus level to ${level}`}
+                aria-pressed={focusLevel >= level}
+                style={{
+                  flex: 1,
+                  height: "36px",
+                  borderRadius: "6px",
+                  border: "none",
+                  background: focusLevel >= level
+                    ? "linear-gradient(135deg, #66BB6A 0%, #8BC34A 100%)"
+                    : "rgba(255, 255, 255, 0.08)",
+                  cursor: "pointer",
+                  transition: "all 0.2s ease",
+                  position: "relative",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: "13px",
+                  fontWeight: "600",
+                  color: focusLevel >= level ? "white" : "rgba(255, 255, 255, 0.4)"
+                }}
+                onMouseEnter={(e) => {
+                  if (focusLevel < level) {
+                    e.currentTarget.style.background = "rgba(255, 255, 255, 0.12)";
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (focusLevel < level) {
+                    e.currentTarget.style.background = "rgba(255, 255, 255, 0.08)";
+                  }
+                }}
+              >
+                {level}
+              </button>
+            ))}
+          </div>
+          <div style={{
+            display: "flex",
+            justifyContent: "space-between",
+            fontSize: "11px",
+            color: "rgba(255, 255, 255, 0.5)"
+          }}>
+            <span>Low</span>
+            <span>High</span>
           </div>
         </div>
 
-        {/* Stress Level */}
-        <div className="space-y-2">
-          <label htmlFor="stress" className="text-lg">
-            Stress Level: {stressLevel}
-          </label>
-          <div className="flex items-center space-x-4">
-            <input
-              id="stress"
-              type="range"
-              min="1"
-              max="5"
-              value={stressLevel}
-              onChange={(e) => setStressLevel(Number(e.target.value))}
-              className="flex-1 h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer"
-              style={{ maxWidth: "30%" }}
-            />
+        {/* Energy Level - Segmented Control */}
+        <div style={{ marginBottom: "20px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+            <label style={{
+              fontSize: "15px",
+              fontWeight: "600",
+              color: "#C5E1A5"
+            }}>
+              ⚡ Energy Level
+            </label>
+            <span style={{
+              fontSize: "13px",
+              color: "#A5D6A7",
+              fontWeight: "600"
+            }}>
+              {stressLevel}/5
+            </span>
+          </div>
+
+          <div style={{
+            display: "flex",
+            gap: "6px",
+            marginBottom: "6px"
+          }}>
+            {[1, 2, 3, 4, 5].map((level) => (
+              <button
+                key={level}
+                onClick={() => setStressLevel(level)}
+                aria-label={`Set energy level to ${level}`}
+                aria-pressed={stressLevel >= level}
+                style={{
+                  flex: 1,
+                  height: "36px",
+                  borderRadius: "6px",
+                  border: "none",
+                  background: stressLevel >= level
+                    ? "linear-gradient(135deg, #66BB6A 0%, #8BC34A 100%)"
+                    : "rgba(255, 255, 255, 0.08)",
+                  cursor: "pointer",
+                  transition: "all 0.2s ease",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: "13px",
+                  fontWeight: "600",
+                  color: stressLevel >= level ? "white" : "rgba(255, 255, 255, 0.4)"
+                }}
+                onMouseEnter={(e) => {
+                  if (stressLevel < level) {
+                    e.currentTarget.style.background = "rgba(255, 255, 255, 0.12)";
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (stressLevel < level) {
+                    e.currentTarget.style.background = "rgba(255, 255, 255, 0.08)";
+                  }
+                }}
+              >
+                {level}
+              </button>
+            ))}
+          </div>
+          <div style={{
+            display: "flex",
+            justifyContent: "space-between",
+            fontSize: "11px",
+            color: "rgba(255, 255, 255, 0.5)"
+          }}>
+            <span>Tired</span>
+            <span>Energized</span>
           </div>
         </div>
 
-        {error && <p className="text-red-500 text-center">{error}</p>}
+        {/* Error Message */}
+        {error && (
+          <div style={{
+            background: "rgba(239, 68, 68, 0.1)",
+            border: "1px solid rgba(239, 68, 68, 0.3)",
+            borderRadius: "10px",
+            padding: "10px 14px",
+            marginBottom: "16px",
+            color: "#ff6666",
+            fontSize: "13px",
+            display: "flex",
+            alignItems: "center",
+            gap: "8px"
+          }} role="alert">
+            <span>⚠️</span>
+            <span>{error}</span>
+          </div>
+        )}
 
+        {/* Start Button */}
         <button
           onClick={handleStartSession}
-          className="w-full py-3 mt-6 font-semibold rounded-md"
-          style={{ backgroundColor: "#49B85B" }}
+          aria-label="Start study session"
+          style={{
+            width: "100%",
+            padding: "12px 24px",
+            fontSize: "15px",
+            fontWeight: "600",
+            background: "linear-gradient(135deg, #66BB6A 0%, #8BC34A 100%)",
+            color: "white",
+            border: "none",
+            borderRadius: "10px",
+            cursor: "pointer",
+            transition: "all 0.3s ease",
+            boxShadow: "0 3px 12px rgba(102, 187, 106, 0.3)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: "8px"
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.transform = "translateY(-2px)";
+            e.currentTarget.style.boxShadow = "0 5px 20px rgba(102, 187, 106, 0.4)";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.transform = "translateY(0)";
+            e.currentTarget.style.boxShadow = "0 3px 12px rgba(102, 187, 106, 0.3)";
+          }}
         >
-          Start Session
+          <span>🚀</span>
+          <span>Start Study Session</span>
         </button>
       </div>
     </div>

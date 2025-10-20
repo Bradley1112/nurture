@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { getFirestore, doc, updateDoc, Timestamp } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
 import { studySessionAPI } from "../services/studySessionAPI";
+import ReactMarkdown from "react-markdown";
 import {
   initializeAgentGraph,
   activateAgent,
@@ -34,6 +35,219 @@ import {
  * 4. Orchestrator calls relevant agents throughout session as needed
  * 5. Student sees unified responses from the orchestrator
  */
+
+// Helper component for rendering formatted agent messages
+const AgentMessage = ({ message, agentProfile }) => {
+  const content = typeof message.content === "string"
+    ? message.content
+    : typeof message.content === "object" && message.content !== null
+    ? message.content.content || message.content.message || message.content.error || JSON.stringify(message.content)
+    : String(message.content);
+
+  // Detect content type for special rendering
+  const isQuestion = content.toLowerCase().includes("question:") ||
+                    (content.includes("A)") && content.includes("B)") && content.includes("C)"));
+  const isPractice = content.toLowerCase().includes("practice") ||
+                     content.toLowerCase().includes("solve");
+  const isExplanation = content.includes("**") && (content.includes("1.") || content.includes("Step"));
+
+  return (
+    <div className="w-full py-4" style={{ borderBottom: "1px solid rgba(255,255,255,0.05)", margin: "8px 0" }}>
+      <div className="max-w-4xl mx-auto" style={{ paddingLeft: "16px", paddingRight: "16px" }}>
+        <div className="flex items-start gap-3">
+          {/* Agent Avatar */}
+          <div
+            className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
+            style={{
+              background: `linear-gradient(135deg, ${agentProfile?.color || "#49B85B"}22, ${agentProfile?.color || "#49B85B"}44)`,
+              border: `2px solid ${agentProfile?.color || "#49B85B"}`,
+            }}
+          >
+            <span className="text-lg">{agentProfile?.icon || "🤖"}</span>
+          </div>
+
+          {/* Message Content */}
+          <div className="flex-1 min-w-0">
+            {/* Agent Name & Timestamp */}
+            <div className="flex items-center gap-2 mb-2">
+              <span
+                className="font-semibold text-sm"
+                style={{ color: agentProfile?.color || "#49B85B" }}
+              >
+                {agentProfile?.name || "Assistant"}
+              </span>
+              {agentProfile?.specialty && (
+                <span className="text-xs text-gray-500">• {agentProfile.specialty}</span>
+              )}
+              {message.metadata?.simulationMode && (
+                <span
+                  className="text-xs px-2 py-0.5 rounded"
+                  style={{
+                    backgroundColor: "rgba(245, 158, 11, 0.2)",
+                    color: "#fbbf24",
+                    border: "1px solid rgba(245, 158, 11, 0.3)"
+                  }}
+                >
+                  Simulation
+                </span>
+              )}
+              <span className="text-xs text-gray-500 ml-auto">
+                {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              </span>
+            </div>
+
+            {/* Content Card - Special styling for questions/practice */}
+            {isQuestion || isPractice ? (
+              <div
+                className="rounded-xl p-4 mb-2"
+                style={{
+                  background: "linear-gradient(135deg, rgba(107, 159, 111, 0.08), rgba(107, 159, 111, 0.03))",
+                  border: "1px solid rgba(107, 159, 111, 0.3)",
+                  boxShadow: "0 2px 8px rgba(0,0,0,0.2)"
+                }}
+              >
+                <div className="flex items-center gap-2 mb-3">
+                  <div
+                    className="px-2 py-1 rounded text-xs font-semibold"
+                    style={{
+                      background: "rgba(107, 159, 111, 0.2)",
+                      color: "#8bc68f",
+                      border: "1px solid rgba(107, 159, 111, 0.4)"
+                    }}
+                  >
+                    {isPractice ? "📝 Practice Problem" : "❓ Question"}
+                  </div>
+                </div>
+                <div
+                  className="prose prose-invert prose-sm max-w-none"
+                  style={{ color: "#e5e7eb", lineHeight: "1.7" }}
+                >
+                  <ReactMarkdown
+                    components={{
+                      h2: ({node, ...props}) => <h2 style={{fontSize: "1.1rem", fontWeight: "600", marginTop: "0.5rem", marginBottom: "0.75rem", color: "#f3f4f6"}} {...props} />,
+                      h3: ({node, ...props}) => <h3 style={{fontSize: "1rem", fontWeight: "600", marginTop: "0.5rem", marginBottom: "0.5rem", color: "#e5e7eb"}} {...props} />,
+                      p: ({node, ...props}) => <p style={{marginBottom: "0.75rem", color: "#d1d5db", fontSize: "0.95rem"}} {...props} />,
+                      ul: ({node, ...props}) => <ul style={{marginLeft: "0", marginBottom: "0.75rem", listStyleType: "none"}} {...props} />,
+                      ol: ({node, ...props}) => <ol style={{marginLeft: "0", marginBottom: "0.75rem", listStyleType: "none"}} {...props} />,
+                      li: ({node, ...props}) => (
+                        <li style={{
+                          marginBottom: "0.5rem",
+                          padding: "0.75rem",
+                          backgroundColor: "rgba(255, 255, 255, 0.03)",
+                          borderRadius: "8px",
+                          border: "1px solid rgba(255, 255, 255, 0.08)",
+                          color: "#d1d5db"
+                        }} {...props} />
+                      ),
+                      code: ({node, inline, ...props}) => inline
+                        ? <code style={{backgroundColor: "rgba(139, 92, 246, 0.15)", padding: "3px 8px", borderRadius: "4px", fontSize: "0.9em", color: "#a78bfa", fontFamily: "monospace"}} {...props} />
+                        : <code style={{display: "block", backgroundColor: "rgba(0,0,0,0.4)", padding: "1rem", borderRadius: "8px", marginTop: "0.75rem", marginBottom: "0.75rem", fontSize: "0.9em", overflow: "auto", border: "1px solid rgba(255,255,255,0.15)", fontFamily: "monospace"}} {...props} />,
+                      strong: ({node, ...props}) => <strong style={{fontWeight: "600", color: "#f9fafb"}} {...props} />,
+                    }}
+                  >
+                    {content}
+                  </ReactMarkdown>
+                </div>
+              </div>
+            ) : (
+              /* Regular Message Content with Markdown */
+              <div
+                className="prose prose-invert prose-sm max-w-none"
+                style={{
+                  color: "#e5e7eb",
+                  lineHeight: "1.7"
+                }}
+              >
+                <ReactMarkdown
+                  components={{
+                    h1: ({node, ...props}) => <h1 style={{fontSize: "1.5rem", fontWeight: "700", marginTop: "1rem", marginBottom: "0.75rem", color: "#f9fafb"}} {...props} />,
+                    h2: ({node, ...props}) => <h2 style={{fontSize: "1.25rem", fontWeight: "600", marginTop: "1rem", marginBottom: "0.5rem", color: "#f3f4f6"}} {...props} />,
+                    h3: ({node, ...props}) => <h3 style={{fontSize: "1.1rem", fontWeight: "600", marginTop: "0.75rem", marginBottom: "0.5rem", color: "#e5e7eb"}} {...props} />,
+                    p: ({node, ...props}) => <p style={{marginBottom: "0.75rem", color: "#d1d5db"}} {...props} />,
+                    ul: ({node, ...props}) => (
+                      <ul style={{
+                        marginLeft: "0",
+                        marginBottom: "1rem",
+                        listStyleType: "none",
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: "0.5rem"
+                      }} {...props} />
+                    ),
+                    ol: ({node, ...props}) => (
+                      <ol style={{
+                        marginLeft: "0",
+                        marginBottom: "1rem",
+                        listStyleType: "none",
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: "0.5rem",
+                        counterReset: "item"
+                      }} {...props} />
+                    ),
+                    li: ({node, ordered, ...props}) => (
+                      <li style={{
+                        paddingLeft: ordered ? "2.5rem" : "2rem",
+                        position: "relative",
+                        color: "#d1d5db",
+                        lineHeight: "1.6"
+                      }}>
+                        <span style={{
+                          position: "absolute",
+                          left: "0",
+                          top: "0",
+                          width: ordered ? "2rem" : "1.5rem",
+                          height: "1.5rem",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          fontSize: "0.875rem",
+                          fontWeight: "600",
+                          color: agentProfile?.color || "#49B85B",
+                          backgroundColor: `${agentProfile?.color || "#49B85B"}22`,
+                          borderRadius: "6px",
+                          border: `1px solid ${agentProfile?.color || "#49B85B"}44`
+                        }}>
+                          {ordered ? (
+                            <span style={{counterIncrement: "item", content: "counter(item)"}}>
+                              {/* Counter will be rendered by CSS */}
+                            </span>
+                          ) : "•"}
+                        </span>
+                        <span {...props} />
+                      </li>
+                    ),
+                    code: ({node, inline, ...props}) => inline
+                      ? <code style={{backgroundColor: "rgba(139, 92, 246, 0.15)", padding: "2px 6px", borderRadius: "4px", fontSize: "0.9em", color: "#a78bfa"}} {...props} />
+                      : <code style={{display: "block", backgroundColor: "rgba(0,0,0,0.3)", padding: "1rem", borderRadius: "8px", marginTop: "0.5rem", marginBottom: "0.5rem", fontSize: "0.9em", overflow: "auto", border: "1px solid rgba(255,255,255,0.1)"}} {...props} />,
+                    blockquote: ({node, ...props}) => <blockquote style={{borderLeft: `4px solid ${agentProfile?.color || "#49B85B"}`, paddingLeft: "1rem", marginLeft: 0, marginBottom: "0.75rem", color: "#9ca3af", fontStyle: "italic", backgroundColor: "rgba(255,255,255,0.02)", padding: "0.75rem 1rem", borderRadius: "0 8px 8px 0"}} {...props} />,
+                    strong: ({node, ...props}) => <strong style={{fontWeight: "600", color: "#f9fafb"}} {...props} />,
+                    em: ({node, ...props}) => <em style={{fontStyle: "italic", color: "#d1d5db"}} {...props} />,
+                  }}
+                >
+                  {content}
+                </ReactMarkdown>
+              </div>
+            )}
+
+            {/* Interactive indicator */}
+            {message.metadata?.interactive && (
+              <div
+                className="mt-3 px-3 py-2 rounded-lg inline-flex items-center gap-2"
+                style={{
+                  backgroundColor: "rgba(102, 187, 106, 0.1)",
+                  border: "1px solid rgba(102, 187, 106, 0.3)"
+                }}
+              >
+                <span style={{ color: "#66BB6A", fontSize: "0.875rem" }}>💬 Awaiting your response</span>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 const StudySession = () => {
   const location = useLocation();
@@ -128,9 +342,13 @@ const StudySession = () => {
     }
   }, []);
 
-  // Auto-scroll chat to bottom
+  // Auto-scroll chat to bottom with smooth animation
   useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (chatEndRef.current) {
+      setTimeout(() => {
+        chatEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+      }, 100);
+    }
   }, [messages]);
 
   // Pomodoro timer logic
@@ -1072,76 +1290,249 @@ const StudySession = () => {
   return (
     <div
       className="min-h-screen flex flex-col"
-      style={{ backgroundColor: "#1A241B", color: "#F5F5F5" }}
+      style={{
+        background: "linear-gradient(to bottom, #0f1419 0%, #1A241B 100%)",
+        color: "#F5F5F5"
+      }}
     >
-      {/* Header */}
-      <div className="flex justify-between items-center p-4 border-b border-gray-600">
-        <div className="flex items-center gap-3">
-          <button
-            onClick={handleSessionEnd}
-            className="px-3 py-2 text-sm rounded-md hover:opacity-80 flex items-center gap-2"
-            style={{ backgroundColor: "#49B85B" }}
-          >
-            ← End Session
-          </button>
-          <h1 className="text-xl font-bold uppercase">
-            📚{" "}
-            {topicId
-              .replace(/_/g, " ")
-              .split(" ")
-              .map((word) => {
-                return word.charAt(0).toUpperCase() + word.slice(1);
-              })
-              .join(" ")}
-          </h1>
-        </div>
-        <div className="flex items-center gap-4">
-          {/* Custom Timer Display */}
-          <div className="flex items-center bg-gray-800 rounded-lg px-4 py-2 border border-gray-600">
-            <div className="text-center">
-              <div className="text-2xl font-mono font-bold text-white">
-                {minutes < 10 ? `0${minutes}` : minutes}:
-                {seconds < 10 ? `0${seconds}` : seconds}
+      {/* Enhanced Header */}
+      <div
+        className="sticky top-0 z-50"
+        style={{
+          background: "rgba(15, 20, 25, 0.95)",
+          backdropFilter: "blur(12px)",
+          borderBottom: "1px solid rgba(255, 255, 255, 0.1)",
+          boxShadow: "0 4px 12px rgba(0, 0, 0, 0.3)",
+          marginTop: "18px"
+        }}
+      >
+        <div className="flex justify-between items-center px-8 py-5">
+          {/* Left: Topic & Actions */}
+          <div className="flex items-center gap-5">
+            <button
+              onClick={handleSessionEnd}
+              className="px-5 py-2.5 text-sm font-medium rounded-xl flex items-center gap-2.5 transition-all duration-200"
+              style={{
+                background: "linear-gradient(135deg, #ef4444 0%, #dc2626 100%)",
+                color: "white",
+                border: "none",
+                boxShadow: "0 2px 8px rgba(239, 68, 68, 0.3)",
+                cursor: "pointer",
+                marginLeft: "8px",
+                marginRight: "16px"
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = "translateY(-2px)";
+                e.currentTarget.style.boxShadow = "0 6px 16px rgba(239, 68, 68, 0.4)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = "translateY(0)";
+                e.currentTarget.style.boxShadow = "0 2px 8px rgba(239, 68, 68, 0.3)";
+              }}
+            >
+              <span style={{ fontSize: "1.1rem" }}>←</span>
+              <span>End Session</span>
+            </button>
+
+            <div className="h-8 w-px bg-gray-700"></div>
+
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-2xl">📚</span>
+                <h1 className="text-lg font-bold" style={{ color: "#A5D6A7" }}>
+                  {topicId
+                    .replace(/_/g, " ")
+                    .split(" ")
+                    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+                    .join(" ")}
+                </h1>
               </div>
-              <div className="text-xs text-gray-400 uppercase tracking-wide">
-                {mode} Time
+              <div className="flex items-center gap-2 text-xs text-gray-400">
+                <span>{agentProfiles[currentAgent]?.icon}</span>
+                <span>Current: {agentProfiles[currentAgent]?.name}</span>
+                <span>•</span>
+                <span>Mode: {sessionMode}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Right: Timer & Stats - Compact Separate Cards */}
+          <div style={{ display: "flex", flexDirection: "row", alignItems: "center", gap: "8px", flexWrap: "nowrap" }}>
+            {/* Concepts Card */}
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+                padding: "8px 12px",
+                borderRadius: "12px",
+                background: "rgba(255, 255, 255, 0.05)",
+                border: "1px solid rgba(255, 255, 255, 0.1)",
+                boxShadow: "0 2px 8px rgba(0, 0, 0, 0.2)",
+                whiteSpace: "nowrap"
+              }}
+            >
+              <span style={{ fontSize: "18px" }}>📚</span>
+              <div className="text-sm font-semibold" style={{ color: "#A5D6A7" }}>
+                {sessionData.studentProgress.conceptsLearned} Concepts
+              </div>
+            </div>
+
+            {/* Interactions Card */}
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+                padding: "8px 12px",
+                borderRadius: "12px",
+                background: "rgba(255, 255, 255, 0.05)",
+                border: "1px solid rgba(255, 255, 255, 0.1)",
+                boxShadow: "0 2px 8px rgba(0, 0, 0, 0.2)",
+                whiteSpace: "nowrap"
+              }}
+            >
+              <span style={{ fontSize: "18px" }}>💬</span>
+              <div className="text-sm font-semibold" style={{ color: "#4ECDC4" }}>
+                {sessionData.agentInteractions.length} Interactions
+              </div>
+            </div>
+
+            {/* Timer Card */}
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+                padding: "8px 12px",
+                borderRadius: "12px",
+                background: "rgba(255, 255, 255, 0.05)",
+                border: "1px solid rgba(255, 255, 255, 0.1)",
+                boxShadow: "0 2px 8px rgba(0, 0, 0, 0.2)",
+                whiteSpace: "nowrap"
+              }}
+            >
+              <span style={{ fontSize: "18px" }}>⏱️</span>
+              <div className="text-sm font-mono font-semibold" style={{ color: "#FFE66D" }}>
+                {minutes < 10 ? `0${minutes}` : minutes}:{seconds < 10 ? `0${seconds}` : seconds} {mode} Time
               </div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Chat Messages - Claude/Gemini style matching reference image */}
+      {/* Chat Messages - Improved with better structure */}
       <div
         className="flex-1 overflow-y-auto"
-        style={{ paddingLeft: "20px", paddingRight: "20px" }}
+        style={{
+          paddingTop: "1rem",
+          paddingBottom: "2rem",
+          backgroundColor: "#0f1419"
+        }}
       >
-        <div className="max-w-4xl mx-auto">
-          {messages.map((message) => (
-            <div key={message.id}>
-              {message.sender === "student" ? (
-                /* User message - content-sized bubble right-aligned */
+        <div className="max-w-5xl mx-auto px-8">
+          {/* Empty State - Show when no messages */}
+          {messages.length === 0 && !isOrchestratorThinking && (
+            <div className="flex flex-col items-center justify-center py-20">
+              <div
+                className="text-center max-w-2xl"
+                style={{
+                  background: "rgba(255, 255, 255, 0.02)",
+                  border: "1px solid rgba(255, 255, 255, 0.08)",
+                  borderRadius: "20px",
+                  padding: "3rem 2rem"
+                }}
+              >
+                <div className="text-6xl mb-4">🎯</div>
+                <h2 className="text-2xl font-bold mb-3" style={{ color: "#A5D6A7" }}>
+                  Ready to Start Learning?
+                </h2>
+                <p className="text-gray-400 mb-6 leading-relaxed">
+                  Your personalized study session is prepared! The AWS Strands AI orchestrator
+                  has analyzed your expertise level ({expertiseLevel}), focus level ({focusLevel}/5),
+                  and energy level ({stressLevel}/5) to create the perfect learning experience.
+                </p>
+
+                <div className="grid grid-cols-3 gap-4 mb-6">
+                  <div
+                    className="p-4 rounded-lg"
+                    style={{
+                      background: "rgba(73, 184, 91, 0.1)",
+                      border: "1px solid rgba(73, 184, 91, 0.3)"
+                    }}
+                  >
+                    <div className="text-2xl mb-2">👨‍🏫</div>
+                    <div className="text-xs font-semibold text-gray-300">Teacher</div>
+                    <div className="text-xs text-gray-500 mt-1">Exam prep & content</div>
+                  </div>
+                  <div
+                    className="p-4 rounded-lg"
+                    style={{
+                      background: "rgba(78, 205, 196, 0.1)",
+                      border: "1px solid rgba(78, 205, 196, 0.3)"
+                    }}
+                  >
+                    <div className="text-2xl mb-2">🎓</div>
+                    <div className="text-xs font-semibold text-gray-300">Tutor</div>
+                    <div className="text-xs text-gray-500 mt-1">Deep understanding</div>
+                  </div>
+                  <div
+                    className="p-4 rounded-lg"
+                    style={{
+                      background: "rgba(255, 230, 109, 0.1)",
+                      border: "1px solid rgba(255, 230, 109, 0.3)"
+                    }}
+                  >
+                    <div className="text-2xl mb-2">🏆</div>
+                    <div className="text-xs font-semibold text-gray-300">Perfect Scorer</div>
+                    <div className="text-xs text-gray-500 mt-1">Visual aids & memory</div>
+                  </div>
+                </div>
+
                 <div
-                  className="w-full"
+                  className="text-sm text-left p-4 rounded-lg mb-6"
                   style={{
-                    display: "flex",
-                    justifyContent: "flex-end",
-                    marginTop: "12px",
-                    marginBottom: "12px",
+                    background: "rgba(255, 255, 255, 0.03)",
+                    border: "1px solid rgba(255, 255, 255, 0.08)"
                   }}
                 >
-                  <span
-                    className="text-sm leading-relaxed"
+                  <div className="font-semibold mb-2" style={{ color: "#8bc68f" }}>
+                    💡 You can ask for:
+                  </div>
+                  <ul className="text-gray-400 text-xs space-y-1">
+                    <li>• Concept explanations and examples</li>
+                    <li>• Practice questions (O-Level style)</li>
+                    <li>• Visual diagrams and memory techniques</li>
+                    <li>• Step-by-step problem solving</li>
+                  </ul>
+                </div>
+
+                <div className="text-sm text-gray-500">
+                  Type <span className="px-2 py-1 rounded" style={{ background: "rgba(255,255,255,0.1)", color: "#8bc68f", fontFamily: "monospace" }}>start</span> to begin, or ask any question!
+                </div>
+              </div>
+            </div>
+          )}
+
+          {messages.map((message) => (
+            <div key={message.id} style={{ margin: "8px 0" }}>
+              {message.sender === "student" ? (
+                /* User message - improved bubble design */
+                <div
+                  className="w-full flex justify-end"
+                  style={{ marginBottom: "12px" }}
+                >
+                  <div
+                    className="max-w-2xl"
                     style={{
-                      backgroundColor: "#e5e7eb",
-                      color: "#1f2937",
-                      borderRadius: "20px",
-                      borderTopRightRadius: "8px",
-                      maxWidth: "50%",
-                      display: "inline-block",
-                      wordWrap: "break-word",
-                      whiteSpace: "pre-wrap",
-                      padding: "12px 16px",
+                      background: "linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)",
+                      color: "white",
+                      borderRadius: "18px",
+                      borderBottomRightRadius: "4px",
+                      padding: "12px 18px",
+                      boxShadow: "0 2px 8px rgba(37, 99, 235, 0.3)",
+                      marginLeft: "16px",
+                      marginRight: "16px"
                     }}
                   >
                     {typeof message.content === "string"
@@ -1221,31 +1612,47 @@ const StudySession = () => {
                     </div>
                   </div>
                 </div>
+              ) : (
+                /* Agent message - use enhanced component */
+                <AgentMessage
+                  message={message}
+                  agentProfile={agentProfiles[message.sender]}
+                />
               )}
             </div>
           ))}
 
-          {/* Thinking indicator */}
+          {/* Enhanced Thinking indicator */}
           {isOrchestratorThinking && (
-            <div className="w-full py-6">
-              <div className="max-w-4xl">
-                <div className="flex items-start">
-                  <div className="w-8 h-8 rounded-full flex items-center justify-center mr-4 mt-1">
-                    <span className="text-base">
-                      {agentProfiles.orchestrator.icon}
-                    </span>
+            <div className="w-full py-4" style={{ borderBottom: "1px solid rgba(255,255,255,0.05)", margin: "8px 0" }}>
+              <div className="max-w-4xl mx-auto" style={{ paddingLeft: "16px", paddingRight: "16px" }}>
+                <div className="flex items-start gap-3">
+                  <div
+                    className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
+                    style={{
+                      background: "linear-gradient(135deg, #49B85B22, #49B85B44)",
+                      border: "2px solid #49B85B",
+                    }}
+                  >
+                    <span className="text-lg animate-pulse">{agentProfiles.orchestrator.icon}</span>
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center mb-2">
-                      <span className="font-medium text-gray-100 text-sm">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="font-semibold text-sm" style={{ color: "#49B85B" }}>
                         {agentProfiles.orchestrator.name}
                       </span>
                     </div>
-                    <div className="text-gray-400 italic text-sm">
-                      {agentGraph && !sessionData.simulationMode
-                        ? "Coordinating AWS Strands agents..."
-                        : "Analyzing and routing to best agent..."}
-                      <span className="ml-2 animate-pulse">💭</span>
+                    <div className="flex items-center gap-2">
+                      <div className="flex gap-1">
+                        <div className="w-2 h-2 bg-green-400 rounded-full animate-bounce"></div>
+                        <div className="w-2 h-2 bg-green-400 rounded-full animate-bounce" style={{ animationDelay: "0.1s" }}></div>
+                        <div className="w-2 h-2 bg-green-400 rounded-full animate-bounce" style={{ animationDelay: "0.2s" }}></div>
+                      </div>
+                      <span className="text-sm text-gray-400 italic">
+                        {agentGraph && !sessionData.simulationMode
+                          ? "Coordinating AWS Strands agents..."
+                          : "Analyzing and routing to best agent..."}
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -1257,26 +1664,132 @@ const StudySession = () => {
         </div>
       </div>
 
-      {/* Input Area - Claude-style */}
+      {/* Enhanced Input Area */}
       <div
-        className="border-t border-gray-600 p-4 bg-gray-900"
+        className="sticky bottom-0 border-t"
         style={{
-          width: "100vw",
-          marginLeft: "calc(-50vw + 50%)",
-          marginRight: "calc(-50vw + 50%)",
+          background: "rgba(15, 20, 25, 0.95)",
+          backdropFilter: "blur(12px)",
+          borderTop: "1px solid rgba(255, 255, 255, 0.1)",
+          boxShadow: "0 -4px 12px rgba(0, 0, 0, 0.3)",
+          padding: "1.5rem 2rem"
         }}
       >
-        <div
-          style={{
-            width: "100%",
-            maxWidth: "calc(100vw - 2rem)",
-            margin: "0 auto",
-            padding: "0 1rem",
-          }}
-        >
+        <div className="max-w-4xl mx-auto">
+          {/* Quick Action Chips - Improved Spacing */}
+          {messages.length > 0 && (
+            <div
+              className="flex gap-5 mb-4 overflow-x-auto pb-2"
+              style={{
+                scrollbarWidth: "thin",
+                paddingTop: "0.5rem",
+                paddingBottom: "0.75rem"
+              }}
+            >
+              <button
+                onClick={() => setInputMessage("Can you explain this concept in more detail?")}
+                disabled={isOrchestratorThinking}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium whitespace-nowrap transition-all duration-200"
+                style={{
+                  background: "linear-gradient(135deg, rgba(107, 159, 111, 0.15), rgba(107, 159, 111, 0.08))",
+                  border: "1px solid rgba(107, 159, 111, 0.3)",
+                  color: "#a8d5ac",
+                  minWidth: "170px",
+                  boxShadow: "0 2px 4px rgba(0, 0, 0, 0.1)",
+                  marginRight: "8px"
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = "linear-gradient(135deg, rgba(107, 159, 111, 0.25), rgba(107, 159, 111, 0.12))";
+                  e.currentTarget.style.borderColor = "rgba(107, 159, 111, 0.5)";
+                  e.currentTarget.style.transform = "translateY(-2px)";
+                  e.currentTarget.style.boxShadow = "0 4px 12px rgba(107, 159, 111, 0.2)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = "linear-gradient(135deg, rgba(107, 159, 111, 0.15), rgba(107, 159, 111, 0.08))";
+                  e.currentTarget.style.borderColor = "rgba(107, 159, 111, 0.3)";
+                  e.currentTarget.style.transform = "translateY(0)";
+                  e.currentTarget.style.boxShadow = "0 2px 4px rgba(0, 0, 0, 0.1)";
+                }}
+              >
+                <span style={{ fontSize: "1.1rem" }}>💡</span>
+                <span>Explain more</span>
+              </button>
+              <button
+                onClick={() => setInputMessage("Give me a practice question")}
+                disabled={isOrchestratorThinking}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium whitespace-nowrap transition-all duration-200"
+                style={{
+                  backgroundColor: "rgba(255, 255, 255, 0.05)",
+                  border: "1px solid rgba(255, 255, 255, 0.15)",
+                  color: "rgba(255, 255, 255, 0.9)",
+                  minWidth: "170px",
+                  boxShadow: "0 2px 4px rgba(0, 0, 0, 0.1)",
+                  marginRight: "8px"
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = "rgba(255, 255, 255, 0.1)";
+                  e.currentTarget.style.borderColor = "rgba(255, 255, 255, 0.25)";
+                  e.currentTarget.style.transform = "translateY(-2px)";
+                  e.currentTarget.style.boxShadow = "0 4px 12px rgba(0, 0, 0, 0.2)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = "rgba(255, 255, 255, 0.05)";
+                  e.currentTarget.style.borderColor = "rgba(255, 255, 255, 0.15)";
+                  e.currentTarget.style.transform = "translateY(0)";
+                  e.currentTarget.style.boxShadow = "0 2px 4px rgba(0, 0, 0, 0.1)";
+                }}
+              >
+                <span style={{ fontSize: "1.1rem" }}>📝</span>
+                <span>Practice question</span>
+              </button>
+              <button
+                onClick={() => setInputMessage("Can you create a visual diagram for this?")}
+                disabled={isOrchestratorThinking}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium whitespace-nowrap transition-all duration-200"
+                style={{
+                  backgroundColor: "rgba(255, 255, 255, 0.05)",
+                  border: "1px solid rgba(255, 255, 255, 0.15)",
+                  color: "rgba(255, 255, 255, 0.9)",
+                  minWidth: "170px",
+                  boxShadow: "0 2px 4px rgba(0, 0, 0, 0.1)"
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = "rgba(255, 255, 255, 0.1)";
+                  e.currentTarget.style.borderColor = "rgba(255, 255, 255, 0.25)";
+                  e.currentTarget.style.transform = "translateY(-2px)";
+                  e.currentTarget.style.boxShadow = "0 4px 12px rgba(0, 0, 0, 0.2)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = "rgba(255, 255, 255, 0.05)";
+                  e.currentTarget.style.borderColor = "rgba(255, 255, 255, 0.15)";
+                  e.currentTarget.style.transform = "translateY(0)";
+                  e.currentTarget.style.boxShadow = "0 2px 4px rgba(0, 0, 0, 0.1)";
+                }}
+              >
+                <span style={{ fontSize: "1.1rem" }}>🎨</span>
+                <span>Visual aid</span>
+              </button>
+            </div>
+          )}
+
+          {/* Input Container */}
           <div
-            className="relative bg-gray-800 rounded-2xl shadow-lg border border-gray-700"
-            style={{ width: "100%", maxWidth: "none" }}
+            className="relative rounded-2xl"
+            style={{
+              backgroundColor: "rgba(255, 255, 255, 0.03)",
+              border: "2px solid rgba(255, 255, 255, 0.1)",
+              boxShadow: "0 4px 12px rgba(0, 0, 0, 0.2)",
+              transition: "all 0.2s ease",
+              padding: "14px"
+            }}
+            onFocus={(e) => {
+              e.currentTarget.style.borderColor = "#49B85B";
+              e.currentTarget.style.boxShadow = "0 4px 16px rgba(73, 184, 91, 0.2)";
+            }}
+            onBlur={(e) => {
+              e.currentTarget.style.borderColor = "rgba(255, 255, 255, 0.1)";
+              e.currentTarget.style.boxShadow = "0 4px 12px rgba(0, 0, 0, 0.2)";
+            }}
           >
             <textarea
               value={inputMessage}
@@ -1291,92 +1804,86 @@ const StudySession = () => {
               }}
               placeholder={
                 sessionStarted
-                  ? "Ask questions, request practice problems, or type 'visual' for diagrams..."
-                  : "Type 'start' to begin your study session..."
+                  ? "Ask a question, request practice, or ask for visual explanations..."
+                  : "Type 'start' to begin your personalized study session..."
               }
               disabled={isOrchestratorThinking}
-              className="w-full p-5 pr-20 bg-transparent text-white placeholder-gray-400 focus:outline-none resize-none text-base leading-6"
+              className="w-full bg-transparent text-white placeholder-gray-500 focus:outline-none resize-none text-sm leading-6"
               style={{
-                minHeight: "120px",
-                maxHeight: "300px",
+                minHeight: "80px",
+                maxHeight: "200px",
                 fontFamily: "system-ui, -apple-system, sans-serif",
-                maxWidth: "none !important",
-                width: "100% !important",
+                padding: "4px 120px 4px 4px"
               }}
-              rows={Math.max(
-                4,
-                Math.min(12, inputMessage.split("\n").length + 1)
-              )}
+              rows={3}
             />
 
-            {/* Send Button */}
+            {/* Send Button - Elongated with Label */}
             <button
               onClick={() => handleStudentMessage(inputMessage)}
               disabled={!inputMessage.trim() || isOrchestratorThinking}
-              className="absolute bottom-4 right-4 p-3 rounded-xl font-medium disabled:opacity-40 hover:opacity-90 transition-all duration-200 shadow-md"
+              className="absolute bottom-4 right-4 px-5 py-3 rounded-xl font-semibold transition-all duration-200 flex items-center gap-2"
               style={{
-                backgroundColor:
-                  inputMessage.trim() && !isOrchestratorThinking
-                    ? "#49B85B"
-                    : "#4A5568",
-                transform:
-                  inputMessage.trim() && !isOrchestratorThinking
-                    ? "scale(1)"
-                    : "scale(0.95)",
+                background: inputMessage.trim() && !isOrchestratorThinking
+                  ? "linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)"
+                  : "rgba(255, 255, 255, 0.1)",
+                boxShadow: inputMessage.trim() && !isOrchestratorThinking
+                  ? "0 3px 12px rgba(59, 130, 246, 0.4)"
+                  : "none",
+                opacity: inputMessage.trim() && !isOrchestratorThinking ? 1 : 0.4,
+                cursor: inputMessage.trim() && !isOrchestratorThinking ? "pointer" : "not-allowed",
+                border: inputMessage.trim() && !isOrchestratorThinking
+                  ? "1px solid rgba(96, 165, 250, 0.3)"
+                  : "1px solid rgba(255, 255, 255, 0.1)",
+                color: "white"
+              }}
+              onMouseEnter={(e) => {
+                if (inputMessage.trim() && !isOrchestratorThinking) {
+                  e.currentTarget.style.transform = "translateY(-2px)";
+                  e.currentTarget.style.boxShadow = "0 6px 20px rgba(59, 130, 246, 0.5)";
+                  e.currentTarget.style.background = "linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)";
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (inputMessage.trim() && !isOrchestratorThinking) {
+                  e.currentTarget.style.transform = "translateY(0)";
+                  e.currentTarget.style.boxShadow = "0 3px 12px rgba(59, 130, 246, 0.4)";
+                  e.currentTarget.style.background = "linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)";
+                }
               }}
             >
               {isOrchestratorThinking ? (
-                <div className="flex items-center space-x-1">
-                  <div className="w-2 h-2 bg-white rounded-full animate-bounce"></div>
-                  <div
-                    className="w-2 h-2 bg-white rounded-full animate-bounce"
-                    style={{ animationDelay: "0.1s" }}
-                  ></div>
-                  <div
-                    className="w-2 h-2 bg-white rounded-full animate-bounce"
-                    style={{ animationDelay: "0.2s" }}
-                  ></div>
-                </div>
+                <>
+                  <div className="flex items-center gap-1">
+                    <div className="w-2 h-2 bg-white rounded-full animate-bounce"></div>
+                    <div className="w-2 h-2 bg-white rounded-full animate-bounce" style={{ animationDelay: "0.1s" }}></div>
+                    <div className="w-2 h-2 bg-white rounded-full animate-bounce" style={{ animationDelay: "0.2s" }}></div>
+                  </div>
+                  <span className="text-sm">Sending...</span>
+                </>
               ) : (
-                <svg
-                  width="20"
-                  height="20"
-                  viewBox="0 0 24 24"
-                  fill="currentColor"
-                  className="text-white"
-                >
-                  <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
-                </svg>
+                <>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" className="text-white">
+                    <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
+                  </svg>
+                  <span className="text-sm">Send</span>
+                </>
               )}
             </button>
 
-            {/* Character count and shortcuts */}
-            <div className="absolute bottom-2 left-4 text-xs text-gray-500">
-              {inputMessage.length > 0 && (
-                <span className="mr-3">{inputMessage.length} chars</span>
+            {/* Helper Text */}
+            <div className="absolute bottom-1.5 left-4 text-xs text-gray-600 flex items-center gap-3">
+              <span>Press Enter to send</span>
+              <span>•</span>
+              <span>Shift+Enter for new line</span>
+              {agentGraph && !sessionData.simulationMode && (
+                <>
+                  <span>•</span>
+                  <span className="text-green-500">🤖 AWS Strands Active</span>
+                </>
               )}
-              <span>Enter to send • Shift+Enter for new line</span>
             </div>
           </div>
-
-          {/* Status indicator */}
-          <div className="mt-4 text-xs text-gray-500 text-center">
-            {agentGraph && !sessionData.simulationMode
-              ? "🤖 AWS Strands orchestrator coordinates Teacher, Tutor, and Perfect Scorer agents"
-              : "🔄 Enhanced simulation mode - AWS Strands integration ready"}
-          </div>
-        </div>
-      </div>
-
-      {/* Session Stats Display */}
-      <div className="text-xs text-gray-500 px-4 py-2 border-t border-gray-700">
-        <div className="max-w-4xl mx-auto flex justify-between">
-          <span>Interactions: {sessionData.agentInteractions.length}</span>
-          <span>Current Agent: {agentProfiles[currentAgent]?.name}</span>
-          <span>Decisions: {sessionData.orchestratorDecisions.length}</span>
-          <span>
-            Progress: {sessionData.studentProgress.conceptsLearned} concepts
-          </span>
         </div>
       </div>
     </div>

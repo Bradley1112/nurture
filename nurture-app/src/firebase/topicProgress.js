@@ -16,6 +16,24 @@ import {
  */
 
 /**
+ * Remove undefined fields from an object (Firebase doesn't accept undefined)
+ */
+const removeUndefinedFields = (obj) => {
+  if (obj === null || obj === undefined) return obj;
+  if (typeof obj !== 'object') return obj;
+  if (Array.isArray(obj)) return obj.map(removeUndefinedFields);
+
+  const cleaned = {};
+  Object.keys(obj).forEach(key => {
+    const value = obj[key];
+    if (value !== undefined) {
+      cleaned[key] = typeof value === 'object' ? removeUndefinedFields(value) : value;
+    }
+  });
+  return cleaned;
+};
+
+/**
  * Get topic progress data for personalized session initialization
  */
 export const getTopicProgress = async (userId, subjectId, topicId) => {
@@ -71,10 +89,17 @@ export const generateNextSteps = async (sessionData, messages, agentInteractions
   const strugglingAreas = extractStrugglingAreas(messages, agentInteractions);
   const masteredConcepts = extractMasteredConcepts(messages, studentProgress);
 
+  // ADDED: Extract covered subtopics for progression tracking
+  const coveredSubtopics = extractCoveredSubtopics(messages);
+
   // Determine next recommended approach
-  const accuracy = studentProgress.correctAnswers / Math.max(1, studentProgress.questionsAnswered);
+  // If no questions answered, use engagement/concepts learned as proxy for accuracy
+  const accuracy = studentProgress.questionsAnswered > 0
+    ? studentProgress.correctAnswers / studentProgress.questionsAnswered
+    : Math.min(1.0, studentProgress.conceptsLearned / 5); // Assume good progress if learning concepts
+
   const hasStruggles = strugglingAreas.length > 0;
-  const hasMastery = masteredConcepts.length >= 2;
+  const hasMastery = masteredConcepts.length >= 2 || studentProgress.conceptsLearned >= 3;
 
   // Smart recommendations based on session performance
   let recommendedMode = 'learning';
@@ -117,6 +142,7 @@ export const generateNextSteps = async (sessionData, messages, agentInteractions
     practiceRatio,
     strugglingAreas,
     masteredConcepts,
+    coveredSubtopics,  // ADDED: Include covered subtopics
     confidence: Math.min(10, accuracy * 10),
     estimatedSessionsToMastery,
     lastUpdated: new Date().toISOString()
@@ -182,6 +208,64 @@ const extractMasteredConcepts = (messages, studentProgress) => {
 
   // Remove duplicates
   return [...new Set(mastered)];
+};
+
+/**
+ * Extract subtopics/concepts covered in this session from agent messages
+ * This helps track progression within a topic (e.g., linear -> quadratic -> factorisation)
+ */
+const extractCoveredSubtopics = (messages) => {
+  console.log("🔍 Extracting covered subtopics from messages...");
+  console.log(`📨 Total messages: ${messages.length}`);
+
+  const subtopics = [];
+
+  // Look for teacher/tutor messages that introduce or explain specific subtopics
+  const agentMessages = messages.filter(m =>
+    m.sender === 'teacher' || m.sender === 'tutor'
+  );
+
+  console.log(`👨‍🏫 Agent messages (teacher/tutor): ${agentMessages.length}`);
+
+  // Common algebra progression patterns
+  const algebraPatterns = [
+    { keywords: ['linear equation', 'simple equation', 'one variable', 'ax + b'], subtopic: 'linear_equations' },
+    { keywords: ['quadratic', 'x²', 'x squared', 'parabola'], subtopic: 'quadratic_equations' },
+    { keywords: ['factoris', 'factor', 'common factor', '(x +'], subtopic: 'factorisation' },
+    { keywords: ['quadratic formula', 'x = (-b ±'], subtopic: 'quadratic_formula' },
+    { keywords: ['simultaneous', 'two equations', 'elimination', 'substitution'], subtopic: 'simultaneous_equations' },
+    { keywords: ['inequality', 'inequalities', '>', '<', '≥', '≤'], subtopic: 'inequalities' }
+  ];
+
+  // Physics patterns
+  const physicsPatterns = [
+    { keywords: ['displacement', 'position', 'distance'], subtopic: 'displacement' },
+    { keywords: ['velocity', 'speed', 'v = u + at'], subtopic: 'velocity' },
+    { keywords: ['acceleration', 'a =', 'rate of change'], subtopic: 'acceleration' },
+    { keywords: ['kinematic equation', 's = ut', 'v² = u²'], subtopic: 'kinematic_equations' }
+  ];
+
+  const allPatterns = [...algebraPatterns, ...physicsPatterns];
+
+  agentMessages.forEach((msg, index) => {
+    const content = (msg.content || '').toLowerCase();
+    console.log(`\n📝 Analyzing message ${index + 1}:`);
+    console.log(`Sender: ${msg.sender}`);
+    console.log(`Content preview: ${content.substring(0, 100)}...`);
+
+    allPatterns.forEach(pattern => {
+      if (pattern.keywords.some(keyword => content.includes(keyword.toLowerCase()))) {
+        console.log(`✅ Found subtopic: ${pattern.subtopic} (matched keywords: ${pattern.keywords.join(', ')})`);
+        subtopics.push(pattern.subtopic);
+      }
+    });
+  });
+
+  // Remove duplicates and return
+  const uniqueSubtopics = [...new Set(subtopics)];
+  console.log(`\n🎯 Covered subtopics found: ${uniqueSubtopics.join(', ') || 'NONE'}`);
+
+  return uniqueSubtopics;
 };
 
 /**
@@ -276,21 +360,24 @@ export const updateTopicProgress = async (
     const nextSteps = await generateNextSteps(sessionData, messages, agentInteractions);
 
     // Calculate performance metrics
-    const accuracy = sessionData.studentProgress.correctAnswers /
-                     Math.max(1, sessionData.studentProgress.questionsAnswered);
+    // Use actual quiz accuracy if available, otherwise estimate from learning progress
+    const accuracy = sessionData.studentProgress.questionsAnswered > 0
+      ? sessionData.studentProgress.correctAnswers / sessionData.studentProgress.questionsAnswered
+      : Math.min(0.8, sessionData.studentProgress.conceptsLearned / 5); // Learning sessions get ~0.6-0.8
 
     // Update average accuracy (weighted average with previous sessions)
+    const previousAverage = currentProgress.performanceHistory?.averageAccuracy || 0;
     const newAverageAccuracy = currentProgress.totalSessions > 0
-      ? (currentProgress.performanceHistory.averageAccuracy * currentProgress.totalSessions + accuracy) /
+      ? (previousAverage * currentProgress.totalSessions + accuracy) /
         (currentProgress.totalSessions + 1)
       : accuracy;
 
     // Determine trend
     let trend = 'stable';
-    if (currentProgress.performanceHistory.averageAccuracy > 0) {
-      if (accuracy > currentProgress.performanceHistory.averageAccuracy + 0.15) {
+    if (previousAverage > 0) {
+      if (accuracy > previousAverage + 0.15) {
         trend = 'improving';
-      } else if (accuracy < currentProgress.performanceHistory.averageAccuracy - 0.15) {
+      } else if (accuracy < previousAverage - 0.15) {
         trend = 'declining';
       }
     }
@@ -303,8 +390,8 @@ export const updateTopicProgress = async (
         sessionData.studentProgress.questionsAnswered
       } questions, ${Math.round(accuracy * 100)}% accuracy`,
       accuracy,
-      primaryAgent: sessionData.currentAgent,
-      mode: sessionData.currentMode
+      primaryAgent: sessionData.currentAgent || sessionData.sessionPlan?.primary_agent || 'teacher',
+      mode: sessionData.currentMode || sessionData.sessionPlan?.initial_mode || 'learning'
     };
 
     // Keep only last 3 sessions
@@ -321,9 +408,27 @@ export const updateTopicProgress = async (
       trend
     );
 
+    // ADDED: Track progression of subtopics covered
+    // Merge new subtopics with existing ones, maintaining order
+    const previousCoveredSubtopics = currentProgress.progression?.coveredSubtopics || [];
+    const newCoveredSubtopics = nextSteps.coveredSubtopics || [];
+
+    console.log("📊 PROGRESSION TRACKING:");
+    console.log(`  Previous covered: ${previousCoveredSubtopics.join(', ') || 'NONE'}`);
+    console.log(`  New this session: ${newCoveredSubtopics.join(', ') || 'NONE'}`);
+
+    const allCoveredSubtopics = [
+      ...previousCoveredSubtopics,
+      ...newCoveredSubtopics
+    ];
+    // Remove duplicates while preserving order
+    const uniqueCoveredSubtopics = [...new Set(allCoveredSubtopics)];
+
+    console.log(`  Combined unique: ${uniqueCoveredSubtopics.join(', ') || 'NONE'}`);
+
     // Update topic progress document
     const updatedProgress = {
-      expertiseLevel: sessionData.context?.expertise_level || promotedExpertiseLevel,
+      expertiseLevel: promotedExpertiseLevel,  // FIXED: Use promoted level, not session context
       lastStudied: serverTimestamp(),
       totalSessions: (currentProgress.totalSessions || 0) + 1,
       nextSteps,
@@ -334,7 +439,16 @@ export const updateTopicProgress = async (
         lastSessionDate: serverTimestamp(),
         trend
       },
-      recentSessions
+      recentSessions,
+      // ADDED: Progression tracking for subtopics
+      progression: {
+        coveredSubtopics: uniqueCoveredSubtopics,
+        lastSubtopic: uniqueCoveredSubtopics.length > 0
+          ? uniqueCoveredSubtopics[uniqueCoveredSubtopics.length - 1]
+          : null,
+        progressionStage: uniqueCoveredSubtopics.length,  // How far along in the topic
+        lastUpdated: serverTimestamp()
+      }
     };
 
     console.log("💾 Writing to Firebase:", {
@@ -343,14 +457,30 @@ export const updateTopicProgress = async (
         expertiseLevel: updatedProgress.expertiseLevel,
         totalSessions: updatedProgress.totalSessions,
         questionsAnswered: updatedProgress.performanceHistory.questionsAnswered,
-        averageAccuracy: updatedProgress.performanceHistory.averageAccuracy
+        averageAccuracy: updatedProgress.performanceHistory.averageAccuracy,
+        progression: {
+          coveredSubtopics: updatedProgress.progression.coveredSubtopics,
+          lastSubtopic: updatedProgress.progression.lastSubtopic,
+          progressionStage: updatedProgress.progression.progressionStage
+        }
       }
     });
 
-    await setDoc(topicRef, updatedProgress, { merge: true });
+    // Firebase doesn't accept undefined values, so filter them out
+    const cleanedProgress = removeUndefinedFields(updatedProgress);
+
+    console.log("🔍 CLEANED progress object:", JSON.stringify(cleanedProgress, (key, value) => {
+      if (typeof value === 'function') return '[Function]';
+      return value;
+    }, 2));
+
+    await setDoc(topicRef, cleanedProgress, { merge: true });
 
     console.log('✅ Topic progress successfully saved to Firebase!');
-    console.log('📊 Next steps:', nextSteps);
+    console.log('📊 Progression saved:', {
+      coveredSubtopics: updatedProgress.progression.coveredSubtopics,
+      lastSubtopic: updatedProgress.progression.lastSubtopic
+    });
 
     // Return progress with promotion flag if leveled up
     const wasPromoted = promotedExpertiseLevel !== currentProgress.expertiseLevel;
@@ -378,7 +508,16 @@ export const getPersonalizedSessionConfig = (topicProgress) => {
     return null;
   }
 
-  const { nextSteps, performanceHistory, expertiseLevel } = topicProgress;
+  const { nextSteps, performanceHistory, expertiseLevel, progression } = topicProgress;
+
+  // ADDED: Determine next subtopic to teach based on progression
+  const coveredSubtopics = progression?.coveredSubtopics || [];
+  const lastSubtopic = progression?.lastSubtopic || null;
+
+  console.log("🎓 LOADING PERSONALIZED CONFIG:");
+  console.log(`  Covered subtopics: ${coveredSubtopics.join(', ') || 'NONE'}`);
+  console.log(`  Last subtopic: ${lastSubtopic || 'NONE'}`);
+  console.log(`  Progression stage: ${progression?.progressionStage || 0}`);
 
   return {
     // Use recommendations from last session
@@ -394,12 +533,17 @@ export const getPersonalizedSessionConfig = (topicProgress) => {
       previousAccuracy: performanceHistory.averageAccuracy,
       trend: performanceHistory.trend,
       totalPreviousSessions: topicProgress.totalSessions,
-      nextStepsGuidance: nextSteps.content
+      nextStepsGuidance: nextSteps.content,
+      // ADDED: Progression context for teacher agent
+      coveredSubtopics: coveredSubtopics,
+      lastSubtopic: lastSubtopic,
+      progressionStage: progression?.progressionStage || 0
     },
 
     // Show to student
     welcomeMessage: `📚 **Continuing ${topicProgress.recentSessions?.[0]?.summary || 'your learning journey'}**\n\n` +
                    `**Next Steps**: ${nextSteps.content}\n\n` +
+                   (lastSubtopic ? `**Last Covered**: ${lastSubtopic.replace(/_/g, ' ')}\n` : '') +
                    `**Performance Trend**: ${performanceHistory.trend === 'improving' ? '📈 Improving!' :
                                             performanceHistory.trend === 'declining' ? '📉 Needs work' :
                                             '➡️ Steady'}\n` +

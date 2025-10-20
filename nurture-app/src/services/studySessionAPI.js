@@ -41,21 +41,29 @@ class StudySessionAPI {
         try {
             console.log('🎯 Initializing AWS Strands study session...', sessionData);
             
+            const payload = {
+                user_id: sessionData.userId,
+                topic_id: sessionData.topicId,
+                subject_id: sessionData.subjectId,
+                expertise_level: this.mapExpertiseLevel(sessionData.expertiseLevel || 'beginner'),
+                focus_level: sessionData.focusLevel || 5,
+                stress_level: sessionData.stressLevel || 3,
+                session_duration: sessionData.sessionDuration || 60,
+                exam_date: sessionData.examDate || null
+            };
+
+            // ADDED: Include topicProgress if provided
+            if (sessionData.topicProgress) {
+                payload.topicProgress = sessionData.topicProgress;
+                console.log('📊 Including topicProgress in payload:', sessionData.topicProgress);
+            }
+
             const response = await fetch(`${this.baseURL}/initialize`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({
-                    user_id: sessionData.userId,
-                    topic_id: sessionData.topicId,
-                    subject_id: sessionData.subjectId,
-                    expertise_level: this.mapExpertiseLevel(sessionData.expertiseLevel || 'beginner'),
-                    focus_level: sessionData.focusLevel || 5,
-                    stress_level: sessionData.stressLevel || 3,
-                    session_duration: sessionData.sessionDuration || 60,
-                    exam_date: sessionData.examDate || null
-                })
+                body: JSON.stringify(payload)
             });
 
             const result = await response.json();

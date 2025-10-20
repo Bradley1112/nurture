@@ -50,6 +50,7 @@ class SessionContext:
     session_duration: int
     exam_date: Optional[str] = None
     session_id: Optional[str] = None
+    topic_progress: Optional[Dict[str, Any]] = None  # ADDED: Topic progression context (accepts topicProgress from frontend)
 
 @dataclass
 class SessionPlan:
@@ -511,36 +512,53 @@ Ready to try a practice problem?"""
 
         # TUTOR AGENT  
         @tool
-        def ask_socratic_question(
+        async def ask_socratic_question(
             topic: str,
             student_response: str,
             learning_objective: str
         ) -> str:
-            """Use Socratic method to guide student discovery"""
+            """Dynamically generate Socratic questions (AI-driven when possible).
             
-            socratic_questions = {
-                "kinematics": [
-                    "What do you think happens to an object's velocity when it accelerates?",
-                    "If you throw a ball upward, what forces act on it during its flight?",
-                    "How might the motion be different on the Moon compared to Earth?",
-                    "What's the difference between speed and velocity? Can you give an example?"
-                ],
-                "reading_comprehension": [
-                    "What clues in the text help you understand the character's motivation?",
-                    "Why do you think the author chose this particular setting?", 
-                    "What assumptions is the author making about the reader's knowledge?",
-                    "How does the tone change throughout the passage?"
-                ],
-                "algebra": [
-                    "What does this variable represent in the real-world context?",
-                    "What would happen if this coefficient was negative instead?",
-                    "How can you check if your solution makes sense?",
-                    "What's another way you could set up this equation?"
-                ]
-            }
+            If Strands is available, ask the orchestrator LLM to produce a short,
+            progressive set of Socratic prompts tailored to the topic and learning
+            objective. Otherwise fall back to a rule-based template generator.
+            """
             
-            questions = socratic_questions.get(topic, ["What do you think about this concept?"])
-            return f"Let me guide you to discover this: {questions[0]}\n\nThink about it step by step..."
+            # Build a clear generation prompt
+            generation_prompt = f"""
+You are an expert Socratic tutor for Singapore O-Level students.
+Topic: {topic}
+Learning objective: {learning_objective}
+Student's recent response: "{student_response}"
+
+Task: Produce 4 concise, progressive Socratic questions that guide the student
+from basic understanding to deeper insight. Number them 1-4 and keep each
+question short (one sentence). Make them encouraging and scaffolded.
+"""
+            # Try AI-first generation when Strands/agent available
+            try:
+                if STRANDS_AVAILABLE and getattr(self, "agent", None):
+                    result = await self.agent.invoke_async(generation_prompt)
+                    ai_text = self._extract_message_text(result)
+                    # Ensure a short guiding prefix similar to prior behaviour
+                    return f"Let me guide you to discover this:\n\n{ai_text}"
+            except Exception as e:
+                logger.debug(f"AI Socratic generation failed, falling back to template: {e}")
+            
+            # Fallback heuristic generation (template-based)
+            templates = [
+                f"What do you think is the key idea behind {topic}?",
+                f"Can you give a simple example that shows the concept in action?",
+                f"What would happen if one of the conditions changed (for example, time or force)?",
+                f"How could you check whether your explanation or answer makes sense?"
+            ]
+            
+            # Slightly adapt templates using learning objective or student response when available
+            if learning_objective:
+                templates[0] = f"What part of '{learning_objective}' do you feel most confident about?"
+                templates[1] = f"Can you demonstrate '{learning_objective}' with a short example?"
+            
+            return "Let me guide you to discover this:\n\n" + "\n".join(f"{i+1}. {q}" for i, q in enumerate(templates))
 
         @tool
         def provide_detailed_feedback(
@@ -1007,30 +1025,116 @@ Ready to begin? Type 'start' or ask any questions about the topic!"""
         student_message: str
     ) -> Dict[str, Any]:
         """Call a specialized agent and return response"""
-        
+
+        logger.info(f"🤖 Calling specialized agent: {agent_id} in {mode} mode")
+
         if agent_id not in self.specialized_agents:
+            logger.error(f"❌ Agent {agent_id} not found in specialized_agents")
             return {"error": f"Agent {agent_id} not found"}
-        
+
         agent = self.specialized_agents[agent_id]
         context = session_data.context
-        
+
+        logger.info(f"📋 Agent context: topic={context.topic_id}, expertise={context.expertise_level}")
+
         try:
             if STRANDS_AVAILABLE:
+                logger.info(f"✅ Strands SDK available - using agent tools")
+                logger.info(f"🔧 Agent has {len(agent.tools) if hasattr(agent, 'tools') else 0} tools available")
+
                 # Use appropriate agent tool based on mode
                 if agent_id == "teacher":
                     if mode == "learning":
-                        response_text = agent.tools[0](  # explain_concept (not async)
-                            topic=context.topic_id,
-                            expertise_level=context.expertise_level
-                        )
+                        logger.info(f"📚 Teacher agent: explaining concept for {context.topic_id}")
+
+                        # ADDED: Extract progression context
+                        covered_subtopics = []
+                        last_subtopic = None
+
+                        logger.info(f"🔍 Checking for topic_progress in context...")
+                        logger.info(f"   context.topic_progress = {context.topic_progress}")
+
+                        if context.topic_progress:
+                            covered_subtopics = context.topic_progress.get('coveredSubtopics', [])
+                            last_subtopic = context.topic_progress.get('lastSubtopic')
+                            logger.info(f"✅ Found progression data:")
+                            logger.info(f"   - Covered: {covered_subtopics}")
+                            logger.info(f"   - Last: {last_subtopic}")
+                        else:
+                            logger.warning(f"⚠️ No topic_progress found in context!")
+
+                        progression_guidance = ""
+                        if covered_subtopics:
+                            progression_guidance = f"""
+**Previous Learning Progress:**
+- Already covered: {', '.join([s.replace('_', ' ') for s in covered_subtopics])}
+- Last session ended at: {last_subtopic.replace('_', ' ') if last_subtopic else 'beginning'}
+
+**IMPORTANT**: Continue from where the student left off. Build on these covered concepts and introduce the NEXT subtopic in the natural learning progression. DO NOT restart from the beginning."""
+
+                        # Use LLM to generate explanation instead of hardcoded responses
+                        prompt = f"""You are an experienced Singapore O-Level teacher specializing in adaptive content delivery.
+
+Topic: {context.topic_id.replace('_', ' ')}
+Student expertise level: {context.expertise_level}
+Student message: "{student_message}"
+{progression_guidance}
+
+**Teaching Approach:**
+- Focus on ONE core concept per response
+- Keep explanations concise (2-3 sentences per section)
+- Adapt complexity to student's demonstrated understanding
+- Address any misconceptions in the student's message first
+- {"Continue the natural progression - do NOT restart from basics the student has already learned" if covered_subtopics else "Start with foundational concepts"}
+
+**Response Structure:**
+1. **What is this concept?** - One clear definition (1-2 sentences)
+2. **Key Points** - Maximum 2 main points with bullet format
+3. **Essential for O-Level** - One key formula/rule/fact most relevant to exams
+4. **Quick Example** - One simple, worked example with clear steps
+
+**Guidelines:**
+- Keep total response under 200 words
+- Use simple, clear language appropriate for {context.expertise_level} level
+- If student shows confusion, focus on clarifying that specific point
+- End with ONE targeted question to check understanding (not multiple questions)
+- Avoid overwhelming with too many concepts at once
+
+Keep it engaging and appropriate for {context.expertise_level} level. Use clear formatting with bullet points and bold headings.
+End with an encouraging question or prompt to check understanding."""
+                        logger.info(f"💬 Sending prompt to teacher agent (learning mode)")
+                        result = await agent.invoke_async(prompt)
+                        logger.info(f"✅ Teacher agent responded (learning mode)")
+                        response_text = self._extract_message_text(result)
+                        logger.info(f"📝 Extracted response: {response_text[:100]}...")
                     else:  # practice
-                        response_data = agent.tools[1](  # generate_practice_question (not async)
-                            topic=context.topic_id,
-                            expertise_level=context.expertise_level
-                        )
-                        response_text = f"**Practice Question:**\n{response_data['question']}\n\n*Try to solve this, then I'll provide the answer and technique.*"
+                        logger.info(f"📝 Teacher agent: generating practice question for {context.topic_id}")
+                        # Use LLM to generate practice questions instead of hardcoded ones
+                        prompt = f"""You are an experienced Singapore O-Level teacher specializing in exam preparation.
+
+Topic: {context.topic_id.replace('_', ' ')}
+Student expertise level: {context.expertise_level}
+
+Generate a Singapore O-Level style practice question appropriate for {context.expertise_level} level:
+
+**Format:**
+**Question:** [Write the question here - make it exam-style]
+
+[If multiple choice, provide options A-D]
+[If structured question, provide clear instructions]
+
+**Instructions to student:**
+Try to solve this question and type your answer. I'll provide the correct answer, working steps, and O-Level answering techniques.
+
+Make the difficulty appropriate for {context.expertise_level} level."""
+                        logger.info(f"💬 Sending prompt to teacher agent (practice mode)")
+                        result = await agent.invoke_async(prompt)
+                        logger.info(f"✅ Teacher agent responded (practice mode)")
+                        response_text = self._extract_message_text(result)
+                        logger.info(f"📝 Extracted response: {response_text[:100]}...")
                         
                 elif agent_id == "tutor":
+                    logger.info(f"🎓 Tutor agent activated in {mode} mode")
                     if mode == "learning":
                         # Get recent conversation history for context
                         recent_messages = session_data.messages[-4:] if len(session_data.messages) >= 4 else session_data.messages
@@ -1044,8 +1148,10 @@ Ready to begin? Type 'start' or ask any questions about the topic!"""
                                     content = content['content'][0].get('text', str(content))
                             conversation_history.append(f"{sender}: {content}")
                         conversation_context = "\n".join(conversation_history)
-                        
-                        prompt = f"""You are a Socratic tutor having a conversation with a student about '{context.topic_id}'. 
+
+                        logger.info(f"📜 Conversation history: {len(conversation_history)} messages")
+
+                        prompt = f"""You are a Socratic tutor having a conversation with a student about '{context.topic_id}'.
 
 IMPORTANT: The student is NOT asking you to generate content. They are answering your previous question or making an observation. DO NOT say they are "asking for content generation."
 
@@ -1055,7 +1161,7 @@ Recent conversation:
 The student just responded: "{student_message}"
 
 Your job: Continue this Socratic dialogue naturally by:
-1. Acknowledging what they said (e.g., "Excellent observation!" or "That's a good start...")  
+1. Acknowledging what they said (e.g., "Excellent observation!" or "That's a good start...")
 2. Building on their response
 3. Asking a follow-up question that guides them to discover more
 
@@ -1063,12 +1169,18 @@ Example response format:
 "Great thinking! You noticed [acknowledge their response]. Now, building on that... [follow-up question]"
 
 DO NOT mention "content generation" or assume they want you to create materials."""
+                        logger.info(f"💬 Sending prompt to tutor agent (learning mode)")
                         result = await agent.invoke_async(prompt)
+                        logger.info(f"✅ Tutor agent responded (learning mode)")
                         response_text = self._extract_message_text(result)
-                    else:  # practice  
+                        logger.info(f"📝 Extracted response: {response_text[:100]}...")
+                    else:  # practice
+                        logger.info(f"💬 Sending feedback prompt to tutor agent (practice mode)")
                         prompt = f"Provide detailed feedback on this student answer: '{student_message}' for the topic '{context.topic_id}'. Include O-Level answering techniques."
                         result = await agent.invoke_async(prompt)
+                        logger.info(f"✅ Tutor agent responded (practice mode)")
                         response_text = self._extract_message_text(result)
+                        logger.info(f"📝 Extracted response: {response_text[:100]}...")
                         
                 elif agent_id == "perfect_scorer":
                     if mode == "learning":
@@ -1085,6 +1197,7 @@ DO NOT mention "content generation" or assume they want you to create materials.
                 response_text = f"[SIMULATION] {agent_id.title()} agent would provide {mode} content for {context.topic_id} here."
             
             # Add agent response to session
+            logger.info(f"💾 Creating agent message with content length: {len(response_text)}")
             agent_msg = {
                 "id": f"msg_{int(time.time())}_agent",
                 "sender": agent_id,
@@ -1097,7 +1210,8 @@ DO NOT mention "content generation" or assume they want you to create materials.
                 }
             }
             session_data.messages.append(agent_msg)
-            
+            logger.info(f"✅ Agent message added to session. Total messages: {len(session_data.messages)}")
+
             # Log agent interaction
             session_data.agent_interactions.append({
                 "timestamp": datetime.now().isoformat(),
@@ -1107,11 +1221,13 @@ DO NOT mention "content generation" or assume they want you to create materials.
                 "response_length": len(response_text),
                 "tools_used": ["primary_tool"]
             })
-            
+
             # Update progress
             session_data.student_progress["concepts_learned"] += 1
             session_data.last_updated = datetime.now()
-            
+
+            logger.info(f"📤 Returning response: agent_id={agent_id}, mode={mode}, content_length={len(response_text)}")
+
             return {
                 "success": True,
                 "message": agent_msg,
@@ -1178,6 +1294,36 @@ study_session_orchestrator = StudySessionOrchestrator()
 async def initialize_study_session(context_data: Dict[str, Any]) -> Dict[str, Any]:
     """Initialize study session - Flask wrapper"""
     try:
+        logger.info(f"📥 RAW context_data received: {list(context_data.keys())}")
+        logger.info(f"   Has topicProgress? {'topicProgress' in context_data}")
+        logger.info(f"   Has topic_progress? {'topic_progress' in context_data}")
+
+        # Convert camelCase fields from frontend to snake_case for Python dataclass
+        field_mappings = {
+            'topicProgress': 'topic_progress',
+            'userId': 'user_id',
+            'topicId': 'topic_id',
+            'subjectId': 'subject_id',
+            'expertiseLevel': 'expertise_level',
+            'focusLevel': 'focus_level',
+            'stressLevel': 'stress_level',
+            'sessionDuration': 'session_duration',
+            'examDate': 'exam_date',
+            'sessionId': 'session_id'
+        }
+
+        for camel_key, snake_key in field_mappings.items():
+            if camel_key in context_data and snake_key not in context_data:
+                context_data[snake_key] = context_data.pop(camel_key)
+                logger.info(f"   ✅ Converted {camel_key} → {snake_key}")
+
+        logger.info(f"📤 AFTER conversion: {list(context_data.keys())}")
+
+        if 'topic_progress' in context_data:
+            logger.info(f"🔄 topic_progress value: {context_data['topic_progress']}")
+            if context_data['topic_progress']:
+                logger.info(f"   Keys: {list(context_data['topic_progress'].keys())}")
+
         context = SessionContext(**context_data)
         session_data = await study_session_orchestrator.initialize_session(context)
         return {

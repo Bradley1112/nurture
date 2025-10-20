@@ -50,6 +50,7 @@ class SessionContext:
     session_duration: int
     exam_date: Optional[str] = None
     session_id: Optional[str] = None
+    topic_progress: Optional[Dict[str, Any]] = None  # ADDED: Topic progression context (accepts topicProgress from frontend)
 
 @dataclass
 class SessionPlan:
@@ -1045,18 +1046,46 @@ Ready to begin? Type 'start' or ask any questions about the topic!"""
                 if agent_id == "teacher":
                     if mode == "learning":
                         logger.info(f"📚 Teacher agent: explaining concept for {context.topic_id}")
+
+                        # ADDED: Extract progression context
+                        covered_subtopics = []
+                        last_subtopic = None
+
+                        logger.info(f"🔍 Checking for topic_progress in context...")
+                        logger.info(f"   context.topic_progress = {context.topic_progress}")
+
+                        if context.topic_progress:
+                            covered_subtopics = context.topic_progress.get('coveredSubtopics', [])
+                            last_subtopic = context.topic_progress.get('lastSubtopic')
+                            logger.info(f"✅ Found progression data:")
+                            logger.info(f"   - Covered: {covered_subtopics}")
+                            logger.info(f"   - Last: {last_subtopic}")
+                        else:
+                            logger.warning(f"⚠️ No topic_progress found in context!")
+
+                        progression_guidance = ""
+                        if covered_subtopics:
+                            progression_guidance = f"""
+**Previous Learning Progress:**
+- Already covered: {', '.join([s.replace('_', ' ') for s in covered_subtopics])}
+- Last session ended at: {last_subtopic.replace('_', ' ') if last_subtopic else 'beginning'}
+
+**IMPORTANT**: Continue from where the student left off. Build on these covered concepts and introduce the NEXT subtopic in the natural learning progression. DO NOT restart from the beginning."""
+
                         # Use LLM to generate explanation instead of hardcoded responses
                         prompt = f"""You are an experienced Singapore O-Level teacher specializing in adaptive content delivery.
 
 Topic: {context.topic_id.replace('_', ' ')}
 Student expertise level: {context.expertise_level}
 Student message: "{student_message}"
+{progression_guidance}
 
 **Teaching Approach:**
 - Focus on ONE core concept per response
 - Keep explanations concise (2-3 sentences per section)
 - Adapt complexity to student's demonstrated understanding
 - Address any misconceptions in the student's message first
+- {"Continue the natural progression - do NOT restart from basics the student has already learned" if covered_subtopics else "Start with foundational concepts"}
 
 **Response Structure:**
 1. **What is this concept?** - One clear definition (1-2 sentences)
@@ -1265,6 +1294,36 @@ study_session_orchestrator = StudySessionOrchestrator()
 async def initialize_study_session(context_data: Dict[str, Any]) -> Dict[str, Any]:
     """Initialize study session - Flask wrapper"""
     try:
+        logger.info(f"📥 RAW context_data received: {list(context_data.keys())}")
+        logger.info(f"   Has topicProgress? {'topicProgress' in context_data}")
+        logger.info(f"   Has topic_progress? {'topic_progress' in context_data}")
+
+        # Convert camelCase fields from frontend to snake_case for Python dataclass
+        field_mappings = {
+            'topicProgress': 'topic_progress',
+            'userId': 'user_id',
+            'topicId': 'topic_id',
+            'subjectId': 'subject_id',
+            'expertiseLevel': 'expertise_level',
+            'focusLevel': 'focus_level',
+            'stressLevel': 'stress_level',
+            'sessionDuration': 'session_duration',
+            'examDate': 'exam_date',
+            'sessionId': 'session_id'
+        }
+
+        for camel_key, snake_key in field_mappings.items():
+            if camel_key in context_data and snake_key not in context_data:
+                context_data[snake_key] = context_data.pop(camel_key)
+                logger.info(f"   ✅ Converted {camel_key} → {snake_key}")
+
+        logger.info(f"📤 AFTER conversion: {list(context_data.keys())}")
+
+        if 'topic_progress' in context_data:
+            logger.info(f"🔄 topic_progress value: {context_data['topic_progress']}")
+            if context_data['topic_progress']:
+                logger.info(f"   Keys: {list(context_data['topic_progress'].keys())}")
+
         context = SessionContext(**context_data)
         session_data = await study_session_orchestrator.initialize_session(context)
         return {

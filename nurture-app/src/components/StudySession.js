@@ -193,6 +193,8 @@ const StudySession = () => {
 
       // Step 1: Initialize backend session via API service
       console.log("🔗 Calling backend session initialization...");
+      console.log("📤 Sending topicProgress to backend:", personalizedConfig?.context);
+
       const backendSessionData = await studySessionAPI.initializeSession({
         userId: sessionContext.userId,
         topicId: sessionContext.topicId,
@@ -202,6 +204,8 @@ const StudySession = () => {
         stressLevel: sessionContext.stressLevel,
         sessionDuration: sessionContext.sessionDuration,
         examDate: sessionContext.examDate,
+        // ADDED: Pass progression context to backend
+        topicProgress: personalizedConfig?.context
       });
       console.log("✅ Backend session initialized:", backendSessionData);
 

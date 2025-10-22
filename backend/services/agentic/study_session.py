@@ -26,6 +26,7 @@ import os
 # AWS Strands SDK imports
 try:
     from strands import Agent, tool
+    from strands.models import BedrockModel  # For non-streaming configuration
     from strands_tools import use_aws  # Available AWS tools
     STRANDS_AVAILABLE = True
 except ImportError as e:
@@ -35,6 +36,7 @@ except ImportError as e:
     tool = None
     runtime = None
     swarm = None
+    BedrockModel = None
 
 logger = logging.getLogger(__name__)
 
@@ -363,17 +365,23 @@ class StudySessionOrchestrator:
         # 
         # self.agent = StudyOrchestrator()
 
+        # Store tool references for later use
+        self.analyze_student_profile = analyze_student_profile
+        self.route_student_message = route_student_message
+        self.reassess_session_progress = reassess_session_progress
+
         # WORKING VERSION - Compatible with current Strands SDK
+        # Use BedrockModel with streaming explicitly disabled for inference profile models
+        from strands.models import BedrockModel
+        orchestrator_bedrock_model = BedrockModel(
+            model_id="us.anthropic.claude-sonnet-4-20250514-v1:0",
+            streaming=False  # CRITICAL: Inference profile models don't support ConverseStream
+        )
         self.agent = Agent(
-            model="us.anthropic.claude-sonnet-4-20250514-v1:0",
+            tools=[analyze_student_profile, route_student_message, reassess_session_progress],
+            model=orchestrator_bedrock_model,
             name="Study Orchestrator"
         )
-        # Attach the tools to the agent (both as attributes and array for compatibility)
-        self.agent.analyze_student_profile = analyze_student_profile
-        self.agent.route_student_message = route_student_message 
-        self.agent.reassess_session_progress = reassess_session_progress
-        # Create tools array for backward compatibility
-        self.agent.tools = [analyze_student_profile, route_student_message, reassess_session_progress]
 
     def _initialize_specialized_agents(self):
         """Initialize the three specialized agents"""
@@ -500,15 +508,12 @@ Ready to try a practice problem?"""
         # self.specialized_agents["teacher"] = TeacherAgent()
 
         # WORKING VERSION - Compatible with current Strands SDK
+        # Pass model string directly (same as optimized_evaluation.py)
         self.specialized_agents["teacher"] = Agent(
+            tools=[explain_concept, generate_practice_question],
             model="us.anthropic.claude-sonnet-4-20250514-v1:0",
             name="Teacher Agent"
         )
-        # Attach the tools to the agent (both as attributes and array for compatibility)
-        self.specialized_agents["teacher"].explain_concept = explain_concept
-        self.specialized_agents["teacher"].generate_practice_question = generate_practice_question
-        # Create tools array for backward compatibility
-        self.specialized_agents["teacher"].tools = [explain_concept, generate_practice_question]
 
         # TUTOR AGENT  
         @tool
@@ -618,15 +623,12 @@ question short (one sentence). Make them encouraging and scaffolded.
         # self.specialized_agents["tutor"] = TutorAgent()
 
         # WORKING VERSION - Compatible with current Strands SDK
+        # Pass model string directly (same as optimized_evaluation.py)
         self.specialized_agents["tutor"] = Agent(
+            tools=[ask_socratic_question, provide_detailed_feedback],
             model="us.anthropic.claude-sonnet-4-20250514-v1:0",
             name="Tutor Agent"
         )
-        # Attach the tools to the agent (both as attributes and array for compatibility)
-        self.specialized_agents["tutor"].ask_socratic_question = ask_socratic_question
-        self.specialized_agents["tutor"].provide_detailed_feedback = provide_detailed_feedback
-        # Create tools array for backward compatibility
-        self.specialized_agents["tutor"].tools = [ask_socratic_question, provide_detailed_feedback]
 
         # PERFECT SCORER AGENT
         @tool  
@@ -780,16 +782,12 @@ After you explain, I'll give you feedback on your explanation and we can discuss
         # self.specialized_agents["perfect_scorer"] = PerfectScorerAgent()
 
         # WORKING VERSION - Compatible with current Strands SDK
+        # Pass model string directly (same as optimized_evaluation.py)
         self.specialized_agents["perfect_scorer"] = Agent(
+            tools=[create_visual_aid, simulate_peer_study, check_wellbeing],
             model="us.anthropic.claude-sonnet-4-20250514-v1:0",
             name="Perfect Scorer Agent"
         )
-        # Attach the tools to the agent (both as attributes and array for compatibility)
-        self.specialized_agents["perfect_scorer"].create_visual_aid = create_visual_aid
-        self.specialized_agents["perfect_scorer"].simulate_peer_study = simulate_peer_study
-        self.specialized_agents["perfect_scorer"].check_wellbeing = check_wellbeing
-        # Create tools array for backward compatibility
-        self.specialized_agents["perfect_scorer"].tools = [create_visual_aid, simulate_peer_study, check_wellbeing]
 
     async def initialize_session(self, context: SessionContext) -> SessionData:
         """Initialize a new study session with orchestrator analysis"""
@@ -809,7 +807,7 @@ After you explain, I'll give you feedback on your explanation and we can discuss
         if STRANDS_AVAILABLE and self.agent:
             try:
                 # Use orchestrator's analysis tool
-                plan_data = await self.agent.tools[0](
+                plan_data = await self.analyze_student_profile(
                     expertise_level=context.expertise_level,
                     focus_level=context.focus_level,
                     stress_level=context.stress_level,
@@ -926,7 +924,7 @@ Ready to begin? Type 'start' or ask any questions about the topic!"""
                     "current_agent": session_data.current_agent,
                     "current_mode": session_data.current_mode
                 }
-                routing = await self.agent.tools[1](
+                routing = await self.route_student_message(
                     message=message,
                     session_context=session_context
                 )
